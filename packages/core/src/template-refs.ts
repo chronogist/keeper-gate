@@ -23,7 +23,8 @@ function* iterRefs(value: unknown): Generator<{ sourceId: string; field: string 
 
 /**
  * Given a workflow's nodes and the trigger node's id, return the set of input fields
- * that downstream actions reference via {{@triggerId.field}}.
+ * that downstream actions reference via {{@triggerId.field}} or the {{@trigger.field}}
+ * alias that the KeeperHub UI emits for the trigger node.
  *
  * This is what lets us auto-derive a tool input schema with no extra UI work:
  * the schema *is* the workflow's actual usage of the trigger.
@@ -32,11 +33,12 @@ export function extractTriggerInputFields(
   nodes: WorkflowNode[],
   triggerId: string
 ): string[] {
+  const triggerAliases = new Set([triggerId, "trigger"]);
   const fields = new Set<string>();
   for (const node of nodes) {
     if (node.id === triggerId) continue;
     for (const ref of iterRefs(node.data?.config)) {
-      if (ref.sourceId === triggerId) {
+      if (triggerAliases.has(ref.sourceId)) {
         // For nested refs like "user.address" keep only the top-level key for the input schema.
         const top = ref.field.split(".")[0]!;
         fields.add(top);
