@@ -39,9 +39,11 @@ export function extractTriggerInputFields(
     if (node.id === triggerId) continue;
     for (const ref of iterRefs(node.data?.config)) {
       if (triggerAliases.has(ref.sourceId)) {
-        // For nested refs like "user.address" keep only the top-level key for the input schema.
-        const top = ref.field.split(".")[0]!;
-        fields.add(top);
+        // The trigger's runtime output is wrapped under `data`, so authors write
+        // {{@trigger.data.address}} to read the `address` input. Strip the leading
+        // `data.` so the inferred schema field is `address`, not `data`.
+        const path = ref.field.replace(/^data\./, "").split(".");
+        fields.add(path[0]!);
       }
     }
   }
