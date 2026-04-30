@@ -2,13 +2,23 @@
 
 > The universal adapter that drops [KeeperHub](https://keeperhub.com)'s on-chain execution layer into any agent framework — in 3 lines.
 
+**LangChain:**
+
 ```ts
 const tools = await new KeeperGateToolkit({ apiKey }).getTools();
 const agent = createReactAgent({ llm, tools });
-await agent.invoke({ messages: [{ role: "user", content: "Check vitalik.eth's USDC balance." }] });
 ```
 
-That's the whole integration. Any LangChain agent now has reliable on-chain execution — retries, gas optimization, audit trails — without writing a line of HTTP / RPC / tx-sending code.
+**ElizaOS:**
+
+```ts
+const character = {
+  ...,
+  plugins: [createKeepergatePlugin({ apiKey })],
+};
+```
+
+That's the whole integration. Any LangChain or ElizaOS agent now has reliable on-chain execution — retries, gas optimization, audit trails — without writing a line of HTTP / RPC / tx-sending code.
 
 ---
 
@@ -34,24 +44,26 @@ KeeperGate is that boilerplate, written once. **One framework-agnostic core, thi
                   |                                        |
         +---------v----------+                  +----------v---------+
         | @keepergate/       |                  | @keepergate/       |
-        |   langchain        |                  |   elizaos  (next)  |
+        |   langchain        |                  |   elizaos          |
         |                    |                  |                    |
-        | StructuredTool[]   |                  | Action[]           |
+        | StructuredTool[]   |                  | Plugin + Action[]  |
         +--------------------+                  +--------------------+
 ```
 
 The hard work — auth, error handling, polling, schema inference, response-shape normalization — lives once in `core`. Each adapter is ~100 lines that translate the same `WorkflowTool` / `DirectExecutor` shape into its framework's native tool contract. Add a new framework adapter, get the entire surface for free.
 
-## What an agent gets — six tools
+## What an agent gets — six capabilities
 
-| Category | Tool | What it does |
-|---|---|---|
-| Direct | `keepergate_transfer` | Native + ERC-20 transfers |
-| Direct | `keepergate_call_contract` | Read or write any contract; auto-fetches ABI |
-| Direct | `keepergate_check_and_execute` | Atomic read → condition → conditional write |
-| Direct | `keepergate_get_execution_status` | Look up tx hash + explorer link for a previous write |
-| Workflow | `keepergate_list_workflows` | Discover workflows the user pre-built in the KeeperHub UI |
-| Workflow | `keepergate_run_workflow` | Trigger a workflow by id, poll to terminal status |
+Each capability ships as a tool in LangChain and an action in ElizaOS, mapping to the same `DirectExecutor` / `KeeperHubClient` underneath.
+
+| Category | LangChain tool | ElizaOS action | What it does |
+|---|---|---|---|
+| Direct | `keepergate_transfer` | `KEEPERGATE_TRANSFER` | Native + ERC-20 transfers |
+| Direct | `keepergate_call_contract` | `KEEPERGATE_CALL_CONTRACT` | Read or write any contract; auto-fetches ABI |
+| Direct | `keepergate_check_and_execute` | `KEEPERGATE_CHECK_AND_EXECUTE` | Atomic read → condition → conditional write |
+| Direct | `keepergate_get_execution_status` | `KEEPERGATE_GET_EXECUTION_STATUS` | Look up tx hash + explorer link for a previous write |
+| Workflow | `keepergate_list_workflows` | `KEEPERGATE_LIST_WORKFLOWS` | Discover workflows the user pre-built in the KeeperHub UI |
+| Workflow | `keepergate_run_workflow` | `KEEPERGATE_RUN_WORKFLOW` | Trigger a workflow by id, poll to terminal status |
 
 Every operation runs through KeeperHub's execution layer — the agent inherits retries, gas optimization, MEV protection, and full audit trails with no extra wiring.
 
@@ -84,15 +96,18 @@ Reads vitalik.eth's USDC balance through a real LLM (gpt-oss-20b on OpenRouter) 
 
 ### Run the smoke tests
 
-Verifies tools are wired correctly against the live KeeperHub API.
+Verifies adapters are wired correctly against the live KeeperHub API.
 
 ```bash
 pnpm --filter @keepergate/core smoke              # workflows API path
 pnpm --filter @keepergate/core smoke:direct       # direct execution API path
-pnpm --filter @keepergate/langchain smoke         # 4 tools through LangChain's interface
+pnpm --filter @keepergate/langchain smoke         # 4 tools through LangChain's StructuredTool interface
+pnpm --filter @keepergate/elizaos smoke           # plugin shape + 6 actions + validate() paths
 ```
 
-## Use it in your own LangChain agent
+## Use it in your own agent
+
+### LangChain
 
 ```ts
 import { KeeperGateToolkit } from "@keepergate/langchain";
@@ -120,13 +135,37 @@ The agent figures out the multi-step flow on its own:
 2. `keepergate_list_workflows` to find "rebalance"
 3. `keepergate_run_workflow` to trigger it
 
+### ElizaOS
+
+```ts
+import { createKeepergatePlugin } from "@keepergate/elizaos";
+
+const character = {
+  name: "Treasury",
+  // ...character config
+  plugins: [createKeepergatePlugin({ apiKey: process.env.KEEPERHUB_API_KEY! })],
+};
+```
+
+Or via `character.json` with the static plugin form:
+
+```jsonc
+{
+  "plugins": ["@keepergate/elizaos"],
+  "settings": { "secrets": { "KEEPERHUB_API_KEY": "kh_..." } }
+}
+```
+
+The plugin's `init` hook reads the API key from plugin config / runtime settings / env and registers all six actions on the runtime.
+
 ## Repo layout
 
 ```
 keeper-gate/
 ├── packages/
 │   ├── core/             # @keepergate/core — framework-agnostic engine
-│   └── langchain/        # @keepergate/langchain — LangChain adapter
+│   ├── langchain/        # @keepergate/langchain — LangChain adapter
+│   └── elizaos/          # @keepergate/elizaos — ElizaOS plugin
 └── examples/
     └── langchain-demo/   # runnable LLM-driven agent demo
 ```
@@ -137,6 +176,7 @@ keeper-gate/
 - **pnpm workspace** monorepo
 - **Zod** for tool schemas (with per-field `.describe()` so the LLM gets argument-level hints)
 - **`@langchain/core`** for the `tool()` factory and `StructuredTool` shape
+- **`@elizaos/core`** v1.7+ for `Plugin`, `Action`, `runtime.useModel`, `parseKeyValueXml`
 - **OpenRouter** for the demo LLM (any OpenAI-compatible endpoint works)
 
 ## What's been verified live against KeeperHub
@@ -151,6 +191,7 @@ keeper-gate/
 | Direct contract read against mainnet | `pnpm --filter @keepergate/core smoke:direct` |
 | Tools callable through LangChain `.invoke()` | `pnpm --filter @keepergate/langchain smoke` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
+| ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 
 ## Findings while building
 
