@@ -37,4 +37,51 @@ console.log(`  ✓ parsed:          ${JSON.stringify(parsed)}`);
 if (parsed.kind !== "read")
   throw new Error(`expected kind=read, got ${parsed.kind}`);
 
+// --- More live invocations (read-only, safe) -------------------------------
+
+type AnyInvoke = {
+  invoke: (input: Record<string, unknown>) => Promise<string>;
+};
+const byName = (n: string): AnyInvoke =>
+  tools.find((t) => t.name === n) as unknown as AnyInvoke;
+
+console.log("\n→ keepergate_list_workflows.invoke({})");
+const listOut = await byName("keepergate_list_workflows").invoke({});
+const list = JSON.parse(listOut);
+console.log(`  ✓ workflows returned: ${list.length}`);
+for (const w of list.slice(0, 5)) console.log(`    - ${w.id}  ${w.name}`);
+
+console.log("\n→ keepergate_check_and_execute.invoke({condition guaranteed-false})");
+// USDC.balanceOf(zero address) is 0; require > 1 — condition fails, no write executed.
+const checkOut = await byName("keepergate_check_and_execute").invoke({
+  network: "ethereum",
+  contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  functionName: "balanceOf",
+  functionArgs: JSON.stringify(["0x0000000000000000000000000000000000000000"]),
+  condition: { operator: "gt", value: "1" },
+  action: {
+    network: "ethereum",
+    contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    functionName: "transfer",
+    functionArgs: JSON.stringify(["0x0000000000000000000000000000000000000000", "0"]),
+  },
+});
+const checkParsed = JSON.parse(checkOut);
+console.log(`  ✓ executed: ${checkParsed.executed}`);
+console.log(`  ✓ condition met: ${checkParsed.condition?.met}`);
+if (checkParsed.executed !== false)
+  throw new Error(`expected executed=false, got ${checkParsed.executed}`);
+
+if (list.length > 0) {
+  console.log(`\n→ keepergate_run_workflow.invoke({workflowId: ${list[0].id}})`);
+  const runOut = await byName("keepergate_run_workflow").invoke({
+    workflowId: list[0].id,
+    input: { address: "0xe74096f8ef2b08aa7257ac98459c624e1bf9a548" },
+  });
+  const run = JSON.parse(runOut);
+  console.log(`  ✓ executionId: ${run.executionId}`);
+  console.log(`  ✓ status:      ${run.status}`);
+  console.log(`  ✓ logs:        ${run.logs.length} entrie(s)`);
+}
+
 console.log("\n✅ langchain adapter smoke passed");
