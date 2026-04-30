@@ -9,6 +9,7 @@
   },
   "scripts": {
     "smoke": "tsx --env-file=../../.env test/smoke.ts",
+    "smoke:direct": "tsx --env-file=../../.env test/smoke-direct.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
