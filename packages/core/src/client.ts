@@ -103,12 +103,17 @@ export class KeeperHubClient {
   }
 
   async getExecutionLogs(executionId: string): Promise<ExecutionLogsResponse> {
-    const res = await this.request<ExecutionLogsResponse | ExecutionLogsResponse["data"]>(
+    const res = await this.request<unknown>(
       `/workflows/executions/${executionId}/logs`
     );
-    // The API has shipped both shapes ({data: [...]} and [...]). Normalize.
-    if (Array.isArray(res)) return { data: res };
-    return { data: res?.data ?? [] };
+    // The API ships several shapes: bare array, {data: [...]}, or {execution, logs: [...]}.
+    if (Array.isArray(res)) return { data: res as ExecutionLogsResponse["data"] };
+    if (res && typeof res === "object") {
+      const obj = res as Record<string, unknown>;
+      if (Array.isArray(obj.logs)) return { data: obj.logs as ExecutionLogsResponse["data"] };
+      if (Array.isArray(obj.data)) return { data: obj.data as ExecutionLogsResponse["data"] };
+    }
+    return { data: [] };
   }
 
   async pollUntilDone(
