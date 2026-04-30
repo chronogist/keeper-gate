@@ -1,2 +1,3 @@
-// Public surface — populated in subsequent commits.
-export {};
+export { KeeperGateToolkit } from "./toolkit.js";
+export type { KeeperGateToolkitOptions, ToolName } from "./toolkit.js";
+export { buildDirectTools } from "./direct-tools.js";
