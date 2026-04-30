@@ -1,0 +1,24 @@
+{
+  "name": "@keepergate/langchain",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "smoke": "tsx --env-file=../../.env test/smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@keepergate/core": "workspace:*",
+    "@langchain/core": "^0.3.40",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  }
+}
