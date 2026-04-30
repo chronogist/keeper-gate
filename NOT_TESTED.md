@@ -96,11 +96,6 @@ These can be added in the existing `pnpm test` flow today.
 - **Where:** `packages/elizaos/test/smoke.ts`.
 - **Estimated effort:** 10 min.
 
-### B9. `isReadResult` discriminator unit
-- **What:** trivial assertions that the type guard correctly distinguishes `{ result }` from `{ executionId, status }`.
-- **Where:** `packages/core/test/template-refs.test.ts` (or a new file).
-- **Estimated effort:** 2 min.
-
 ---
 
 ## C. Tested by code path, but not every input
@@ -131,8 +126,8 @@ These code paths are exercised — what's missing is variation.
 
 ## D. Order we plan to tackle these
 
-1. ~~**B1** (toolkit include filter)~~ — done (commit `<hash>`).
-2. **B9** (isReadResult discriminator) — 2 min.
+1. ~~**B1** (toolkit include filter)~~ — done.
+2. ~~**B9** (isReadResult discriminator)~~ — done.
 3. **B5** (rawRequest error path) — 5 min, while we're in the file.
 4. **B2** (cross-chain smoke) — proves a README claim.
 5. **B7** (template-refs pathological) — easy to add now.
