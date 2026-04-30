@@ -4,6 +4,7 @@ import {
   type KeeperHubClientOptions,
 } from "@keepergate/core";
 import { buildDirectTools } from "./direct-tools.js";
+import { buildWorkflowTools } from "./workflow-tools.js";
 
 export interface KeeperGateToolkitOptions extends KeeperHubClientOptions {
   /**
@@ -17,9 +18,17 @@ export interface KeeperGateToolkitOptions extends KeeperHubClientOptions {
 export type ToolName =
   | "transfer"
   | "callContract"
-  | "checkAndExecute";
+  | "checkAndExecute"
+  | "listWorkflows"
+  | "runWorkflow";
 
-const ALL_TOOLS: ToolName[] = ["transfer", "callContract", "checkAndExecute"];
+const ALL_TOOLS: ToolName[] = [
+  "transfer",
+  "callContract",
+  "checkAndExecute",
+  "listWorkflows",
+  "runWorkflow",
+];
 
 /**
  * KeeperGateToolkit — the one-stop entry point for plugging KeeperHub
@@ -49,11 +58,14 @@ export class KeeperGateToolkit {
    * The set is filtered by the `include` option passed at construction.
    */
   async getTools() {
-    const all = buildDirectTools(this.direct);
-    const byName = new Map<ToolName, (typeof all)[number]>([
-      ["transfer", all[0]],
-      ["callContract", all[1]],
-      ["checkAndExecute", all[2]],
+    const direct = buildDirectTools(this.direct);
+    const workflow = buildWorkflowTools(this.client);
+    const byName = new Map<ToolName, (typeof direct)[number] | (typeof workflow)[number]>([
+      ["transfer", direct[0]],
+      ["callContract", direct[1]],
+      ["checkAndExecute", direct[2]],
+      ["listWorkflows", workflow[0]],
+      ["runWorkflow", workflow[1]],
     ]);
     return this.include.flatMap((n) => {
       const t = byName.get(n);
