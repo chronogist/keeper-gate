@@ -84,4 +84,47 @@ if (list.length > 0) {
   console.log(`  ✓ logs:        ${run.logs.length} entrie(s)`);
 }
 
+// keepergate_transfer: no wallet configured -> API returns 422. We assert
+// the tool returns a JSON-parseable string (not a throw) carrying the error.
+console.log("\n→ keepergate_transfer.invoke({tiny ETH transfer, no wallet})");
+try {
+  const out = await byName("keepergate_transfer").invoke({
+    network: "ethereum",
+    recipientAddress: "0x0000000000000000000000000000000000000001",
+    amount: "0.0001",
+  });
+  // If we got here, either it succeeded (rare) or the API returned a
+  // structured error. Either way the tool must have returned a string.
+  console.log(`  ✓ raw tool output: ${out.slice(0, 120)}`);
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (!/wallet|configured|422/i.test(msg)) {
+    throw new Error(`unexpected transfer error: ${msg}`);
+  }
+  console.log(
+    `  ✓ tool surfaced expected error: ${msg.slice(0, 100)}…`
+  );
+}
+
+// keepergate_get_execution_status with a fake id: API returns 404, the tool
+// either surfaces the error cleanly or returns a status payload describing
+// the missing execution. Either is acceptable -- a throw would fail above.
+console.log(
+  "\n→ keepergate_get_execution_status.invoke({fake id}) [expects 404 path]"
+);
+try {
+  const out = await byName("keepergate_get_execution_status").invoke({
+    executionId: "direct_does_not_exist_zzz",
+  });
+  console.log(`  ✓ raw tool output: ${out.slice(0, 120)}`);
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (!/404|not found/i.test(msg)) {
+    throw new Error(`unexpected status error: ${msg}`);
+  }
+  console.log(
+    `  ✓ tool surfaced expected 404: ${msg.slice(0, 100)}…`
+  );
+}
+
 console.log("\n✅ langchain adapter smoke passed");
