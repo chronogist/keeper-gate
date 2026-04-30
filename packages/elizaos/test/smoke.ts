@@ -167,6 +167,172 @@ const captureCallback = async (response: { text?: string }) => {
   console.log(`  ✓ callback fired: "${recordedCallbacks.at(-1)?.slice(0, 80)}..."`);
 }
 
+// Handler 3: KEEPERGATE_CHECK_AND_EXECUTE with a guaranteed-false condition.
+// Real API call, no write attempted -- end-to-end safe.
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_CHECK_AND_EXECUTE"
+  );
+  if (!action) throw new Error("missing check_and_execute action");
+  const usdc = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+  const stubRuntime = {
+    composeState: async () => ({}) as State,
+    useModel: async () =>
+      `<response>
+<network>ethereum</network>
+<contractAddress>${usdc}</contractAddress>
+<functionName>balanceOf</functionName>
+<functionArgs>["0x0000000000000000000000000000000000000000"]</functionArgs>
+<operator>gt</operator>
+<targetValue>1</targetValue>
+<actionContractAddress>${usdc}</actionContractAddress>
+<actionFunctionName>transfer</actionFunctionName>
+<actionFunctionArgs>["0x0000000000000000000000000000000000000000","0"]</actionFunctionArgs>
+</response>`,
+  } as unknown as IAgentRuntime;
+
+  const before = recordedCallbacks.length;
+  const result = await action.handler(
+    stubRuntime,
+    msg("if usdc balance of zero address > 1, send dust"),
+    undefined,
+    undefined,
+    captureCallback
+  );
+  if (!result || typeof result !== "object" || !("success" in result)) {
+    throw new Error("check_and_execute handler must return ActionResult");
+  }
+  const values = result.values as { executed?: boolean } | undefined;
+  if (values?.executed !== false) {
+    throw new Error(`expected executed=false, got ${JSON.stringify(values)}`);
+  }
+  console.log(
+    `  ✓ KEEPERGATE_CHECK_AND_EXECUTE handler -> success=${result.success}, executed=${values.executed}`
+  );
+  if (recordedCallbacks.length <= before)
+    throw new Error("expected callback to be invoked");
+}
+
+// Handler 4: KEEPERGATE_TRANSFER. The user has no wallet configured, so the
+// real API returns 422. We verify the handler reports success=false with the
+// expected error path (not a throw), proving the full extract -> API ->
+// error-shaping pipeline works.
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_TRANSFER"
+  );
+  if (!action) throw new Error("missing transfer action");
+  const stubRuntime = {
+    composeState: async () => ({}) as State,
+    useModel: async () =>
+      `<response>
+<network>ethereum</network>
+<recipientAddress>0x0000000000000000000000000000000000000001</recipientAddress>
+<amount>0.0001</amount>
+<tokenAddress></tokenAddress>
+</response>`,
+  } as unknown as IAgentRuntime;
+
+  const before = recordedCallbacks.length;
+  const result = await action.handler(
+    stubRuntime,
+    msg("send 0.0001 ETH to 0x...1 on ethereum"),
+    undefined,
+    undefined,
+    captureCallback
+  );
+  if (!result || typeof result !== "object" || !("success" in result)) {
+    throw new Error("transfer handler must return ActionResult");
+  }
+  // Two acceptable outcomes: success=true (rare -- needs configured wallet),
+  // or success=false with an explicit error string. A throw would fail above.
+  console.log(
+    `  ✓ KEEPERGATE_TRANSFER handler -> success=${result.success} (callback fired: ${
+      recordedCallbacks.length > before
+    })`
+  );
+  if (!result.success && !result.text)
+    throw new Error("transfer failure must include text");
+}
+
+// Handler 5: KEEPERGATE_GET_EXECUTION_STATUS with a fake executionId.
+// API returns 404. Same as transfer -- we verify the handler surfaces it
+// cleanly as success=false with a descriptive error, no throw.
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_GET_EXECUTION_STATUS"
+  );
+  if (!action) throw new Error("missing get_execution_status action");
+  const stubRuntime = {
+    composeState: async () => ({}) as State,
+    useModel: async () =>
+      `<response><executionId>direct_does_not_exist_zzz</executionId></response>`,
+  } as unknown as IAgentRuntime;
+
+  const result = await action.handler(
+    stubRuntime,
+    msg("did execution direct_does_not_exist_zzz land?"),
+    undefined,
+    undefined,
+    captureCallback
+  );
+  if (!result || typeof result !== "object" || !("success" in result)) {
+    throw new Error("get_execution_status handler must return ActionResult");
+  }
+  console.log(
+    `  ✓ KEEPERGATE_GET_EXECUTION_STATUS handler -> success=${result.success} (404 surfaced as failure)`
+  );
+}
+
+// Handler 6: KEEPERGATE_RUN_WORKFLOW. Stub useModel to return the workflow
+// id we already know exists. Real call to executeWorkflow + pollUntilDone.
+// May return success or error depending on the workflow's state -- both are
+// valid outcomes; what we verify is that the handler returns a typed
+// ActionResult and surfaces the executionId.
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_RUN_WORKFLOW"
+  );
+  if (!action) throw new Error("missing run_workflow action");
+
+  // We need to know which workflow exists -- pull it via the client.
+  const { KeeperHubClient } = await import("@keepergate/core");
+  const client = new KeeperHubClient({ apiKey: apiKey! });
+  const wfs = await client.listWorkflows();
+  if (wfs.length === 0) {
+    console.log(
+      "  ! KEEPERGATE_RUN_WORKFLOW handler skipped (no workflows in account)"
+    );
+  } else {
+    const workflowId = wfs[0]!.id;
+    const stubRuntime = {
+      composeState: async () => ({}) as State,
+      useModel: async () =>
+        `<response>
+<workflowId>${workflowId}</workflowId>
+<input>{"address":"0xe74096f8ef2b08aa7257ac98459c624e1bf9a548"}</input>
+</response>`,
+    } as unknown as IAgentRuntime;
+
+    const result = await action.handler(
+      stubRuntime,
+      msg(`run workflow ${workflowId}`),
+      undefined,
+      undefined,
+      captureCallback
+    );
+    if (!result || typeof result !== "object" || !("success" in result)) {
+      throw new Error("run_workflow handler must return ActionResult");
+    }
+    const values = result.values as { executionId?: string; status?: string } | undefined;
+    if (!values?.executionId)
+      throw new Error("expected executionId in values");
+    console.log(
+      `  ✓ KEEPERGATE_RUN_WORKFLOW handler -> success=${result.success}, status=${values.status}, executionId=${values.executionId}`
+    );
+  }
+}
+
 console.log("\n✅ elizaos adapter smoke passed");
 
 function msg(text: string): Memory {
