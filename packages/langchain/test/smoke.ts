@@ -127,4 +127,61 @@ try {
   );
 }
 
+// --- KeeperGateToolkit.include filter --------------------------------------
+//
+// The README documents a `include` option for restricting the toolkit to a
+// subset of tools (e.g. for read-only agents). This block verifies the
+// filter actually works -- pure local logic, no network calls.
+
+console.log("\n→ KeeperGateToolkit.include filter");
+
+{
+  const restricted = await new KeeperGateToolkit({
+    apiKey,
+    include: ["callContract"],
+  }).getTools();
+  if (restricted.length !== 1) {
+    throw new Error(
+      `include=['callContract'] should return 1 tool, got ${restricted.length}`
+    );
+  }
+  if (restricted[0]!.name !== "keepergate_call_contract") {
+    throw new Error(
+      `expected keepergate_call_contract, got ${restricted[0]!.name}`
+    );
+  }
+  console.log(`  ✓ include: ['callContract']  -> 1 tool: ${restricted[0]!.name}`);
+}
+
+{
+  const pair = await new KeeperGateToolkit({
+    apiKey,
+    include: ["callContract", "listWorkflows"],
+  }).getTools();
+  if (pair.length !== 2) {
+    throw new Error(
+      `include=[2 names] should return 2 tools, got ${pair.length}`
+    );
+  }
+  const names = pair.map((t) => t.name).sort();
+  const expected = ["keepergate_call_contract", "keepergate_list_workflows"];
+  if (JSON.stringify(names) !== JSON.stringify(expected)) {
+    throw new Error(
+      `expected ${JSON.stringify(expected)}, got ${JSON.stringify(names)}`
+    );
+  }
+  console.log(`  ✓ include: [2 names]         -> 2 tools: ${names.join(", ")}`);
+}
+
+{
+  const empty = await new KeeperGateToolkit({
+    apiKey,
+    include: [],
+  }).getTools();
+  if (empty.length !== 0) {
+    throw new Error(`include=[] should return 0 tools, got ${empty.length}`);
+  }
+  console.log(`  ✓ include: []                -> 0 tools (read-restricted agent)`);
+}
+
 console.log("\n✅ langchain adapter smoke passed");

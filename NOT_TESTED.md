@@ -57,12 +57,6 @@ Cannot be tested from the repo today; requires setup outside our control.
 
 These can be added in the existing `pnpm test` flow today.
 
-### B1. `KeeperGateToolkit.include` filter
-- **What:** verify that constructing the toolkit with `include: ["callContract"]` returns *only* `keepergate_call_contract`, not all 6 tools.
-- **Why it matters:** README promises this for restricted agents.
-- **Where:** `packages/langchain/test/smoke.ts`.
-- **Estimated effort:** 5 min.
-
 ### B2. Cross-chain smoke (Base + Arbitrum)
 - **What:** call `USDC.balanceOf(vitalik)` on Base + Arbitrum + Polygon, not just Ethereum.
 - **Why it matters:** README claims "any chain KeeperHub supports". Cheap to validate.
@@ -137,7 +131,7 @@ These code paths are exercised — what's missing is variation.
 
 ## D. Order we plan to tackle these
 
-1. **B1** (toolkit include filter) — README promise, 5 min.
+1. ~~**B1** (toolkit include filter)~~ — done (commit `<hash>`).
 2. **B9** (isReadResult discriminator) — 2 min.
 3. **B5** (rawRequest error path) — 5 min, while we're in the file.
 4. **B2** (cross-chain smoke) — proves a README claim.
