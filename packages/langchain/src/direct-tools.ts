@@ -51,6 +51,14 @@ const callContractSchema = z.object({
     .describe("Wei to send for payable functions."),
 });
 
+const statusSchema = z.object({
+  executionId: z
+    .string()
+    .describe(
+      "The executionId returned by a previous keepergate_transfer or keepergate_call_contract write call."
+    ),
+});
+
 const checkAndExecuteSchema = z.object({
   network: networkSchema,
   contractAddress: z.string(),
@@ -144,5 +152,23 @@ export function buildDirectTools(executor: DirectExecutor) {
     }
   );
 
-  return [transferTool, callContractTool, checkAndExecuteTool] as const;
+  const getStatusTool = tool(
+    async (input) => {
+      const status = await executor.getStatus(input.executionId);
+      return JSON.stringify(status);
+    },
+    {
+      name: "keepergate_get_execution_status",
+      description:
+        "Look up the status of a Direct Execution write (transfer, contract write, or check-and-execute action) by its executionId. Returns the terminal status, transactionHash, transactionLink (block explorer URL), gas used, and any error. Use this after a write call when you need to confirm the transaction landed or fetch the explorer link.",
+      schema: statusSchema,
+    }
+  );
+
+  return [
+    transferTool,
+    callContractTool,
+    checkAndExecuteTool,
+    getStatusTool,
+  ] as const;
 }

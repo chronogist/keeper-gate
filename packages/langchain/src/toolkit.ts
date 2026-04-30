@@ -19,6 +19,7 @@ export type ToolName =
   | "transfer"
   | "callContract"
   | "checkAndExecute"
+  | "getExecutionStatus"
   | "listWorkflows"
   | "runWorkflow";
 
@@ -26,6 +27,7 @@ const ALL_TOOLS: ToolName[] = [
   "transfer",
   "callContract",
   "checkAndExecute",
+  "getExecutionStatus",
   "listWorkflows",
   "runWorkflow",
 ];
@@ -64,6 +66,7 @@ export class KeeperGateToolkit {
       ["transfer", direct[0]],
       ["callContract", direct[1]],
       ["checkAndExecute", direct[2]],
+      ["getExecutionStatus", direct[3]],
       ["listWorkflows", workflow[0]],
       ["runWorkflow", workflow[1]],
     ]);
