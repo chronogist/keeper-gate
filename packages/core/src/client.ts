@@ -46,6 +46,14 @@ export class KeeperHubClient {
     this.fetchImpl = opts.fetch ?? fetch;
   }
 
+  /**
+   * Low-level request escape hatch. Used by DirectExecutor and any caller
+   * that needs to hit an endpoint not yet wrapped by a typed method.
+   */
+  async rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return this.request<T>(path, init);
+  }
+
   private async request<T>(
     path: string,
     init: RequestInit = {}

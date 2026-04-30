@@ -81,3 +81,78 @@ export interface ExecutionResult {
   status: ExecutionStatus;
   logs: ExecutionLogEntry[];
 }
+
+// --- Direct Execution -------------------------------------------------------
+
+export interface DirectTransferInput {
+  /** Chain id or network name (e.g. "base", "ethereum", "8453"). */
+  network: string;
+  recipientAddress: string;
+  /** Human-readable amount, e.g. "0.1". */
+  amount: string;
+  /** Omit for native tokens; set to ERC-20 contract for token transfers. */
+  tokenAddress?: string;
+  /** JSON string with token metadata for non-standard ERC-20s. */
+  tokenConfig?: string;
+  gasLimitMultiplier?: string;
+}
+
+export interface DirectContractCallInput {
+  contractAddress: string;
+  network: string;
+  functionName: string;
+  /** JSON-encoded array of args, e.g. '["0x...","1000"]'. */
+  functionArgs?: string;
+  /** ABI as JSON string. Auto-fetched from explorer if omitted. */
+  abi?: string;
+  /** Wei to send for payable functions. */
+  value?: string;
+  gasLimitMultiplier?: string;
+}
+
+export interface DirectCondition {
+  operator: "eq" | "neq" | "gt" | "lt" | "gte" | "lte";
+  value: string;
+}
+
+export interface DirectCheckAndExecuteInput
+  extends DirectContractCallInput {
+  condition: DirectCondition;
+  action: DirectContractCallInput;
+}
+
+/** Read-call result (synchronous return). */
+export interface DirectReadResult {
+  result: string;
+}
+
+/** Write-call / transfer result (synchronous return). */
+export interface DirectWriteResult {
+  executionId: string;
+  status: ExecutionStatus;
+}
+
+export interface DirectCheckAndExecuteResult {
+  executed: boolean;
+  executionId?: string;
+  status?: ExecutionStatus;
+  condition: {
+    met: boolean;
+    observedValue: string;
+    targetValue: string;
+    operator: DirectCondition["operator"];
+  };
+}
+
+export interface DirectExecutionStatus {
+  executionId: string;
+  status: ExecutionStatus;
+  type?: string;
+  transactionHash?: string;
+  transactionLink?: string;
+  gasUsedWei?: string;
+  result?: unknown;
+  error?: string | null;
+  createdAt?: string;
+  completedAt?: string;
+}
