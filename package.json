@@ -6,6 +6,9 @@
   "scripts": {
     "build": "pnpm -r build",
     "smoke": "pnpm --filter @keepergate/core smoke",
+    "test": "pnpm typecheck && pnpm test:units && pnpm test:smokes",
+    "test:units": "pnpm --filter @keepergate/core test:units",
+    "test:smokes": "pnpm --filter @keepergate/core smoke && pnpm --filter @keepergate/core smoke:direct && pnpm --filter @keepergate/langchain smoke && pnpm --filter @keepergate/elizaos smoke",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

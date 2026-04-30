@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { createKeepergatePlugin, keepergatePlugin } from "../src/index.js";
-import type { Action, IAgentRuntime, Memory } from "@elizaos/core";
+import type { Action, IAgentRuntime, Memory, State } from "@elizaos/core";
 
 const apiKey = process.env.KEEPERHUB_API_KEY;
 if (!apiKey) throw new Error("Set KEEPERHUB_API_KEY in .env");
