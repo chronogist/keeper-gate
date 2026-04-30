@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { createKeepergatePlugin } from "../src/index.js";
+import { createKeepergatePlugin, keepergatePlugin } from "../src/index.js";
 import type { Action, IAgentRuntime, Memory } from "@elizaos/core";
 
 const apiKey = process.env.KEEPERHUB_API_KEY;
@@ -330,6 +330,79 @@ const captureCallback = async (response: { text?: string }) => {
     console.log(
       `  ✓ KEEPERGATE_RUN_WORKFLOW handler -> success=${result.success}, status=${values.status}, executionId=${values.executionId}`
     );
+  }
+}
+
+// --- Static plugin: keepergatePlugin.init() hook ---------------------------
+//
+// keepergatePlugin (the const) reads KEEPERHUB_API_KEY from plugin config
+// first, then runtime.getSetting, then process.env. On success it registers
+// all 6 actions via runtime.registerAction. We exercise all three sources +
+// the missing-key error case.
+
+console.log("\n→ keepergatePlugin.init() — registration paths");
+
+if (!keepergatePlugin.init) {
+  throw new Error("keepergatePlugin should have an init() hook");
+}
+
+// 1. API key from plugin config
+{
+  const registered: Action[] = [];
+  const stubRuntime = {
+    registerAction: (a: Action) => registered.push(a),
+    getSetting: () => undefined,
+  } as unknown as IAgentRuntime;
+  await keepergatePlugin.init({ KEEPERHUB_API_KEY: apiKey! }, stubRuntime);
+  if (registered.length !== 6)
+    throw new Error(
+      `expected 6 actions registered from config path, got ${registered.length}`
+    );
+  console.log(
+    `  ✓ from plugin config: registered ${registered.length} action(s)`
+  );
+}
+
+// 2. API key from runtime.getSetting
+{
+  const registered: Action[] = [];
+  const stubRuntime = {
+    registerAction: (a: Action) => registered.push(a),
+    getSetting: (key: string) =>
+      key === "KEEPERHUB_API_KEY" ? apiKey : undefined,
+  } as unknown as IAgentRuntime;
+  await keepergatePlugin.init({}, stubRuntime);
+  if (registered.length !== 6)
+    throw new Error(
+      `expected 6 actions registered from getSetting path, got ${registered.length}`
+    );
+  console.log(
+    `  ✓ from runtime.getSetting: registered ${registered.length} action(s)`
+  );
+}
+
+// 3. Missing key everywhere -> init must throw a clear message
+{
+  const stubRuntime = {
+    registerAction: () => undefined,
+    getSetting: () => undefined,
+  } as unknown as IAgentRuntime;
+  // Temporarily blank the env so we hit the missing-key branch
+  const saved = process.env.KEEPERHUB_API_KEY;
+  delete process.env.KEEPERHUB_API_KEY;
+  try {
+    await keepergatePlugin.init({}, stubRuntime);
+    throw new Error("expected init() to throw when API key is missing");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/KEEPERHUB_API_KEY|required/i.test(msg)) {
+      throw new Error(`init() threw an unexpected error: ${msg}`);
+    }
+    console.log(
+      `  ✓ missing key surfaced as a clear error: "${msg.slice(0, 70)}…"`
+    );
+  } finally {
+    if (saved) process.env.KEEPERHUB_API_KEY = saved;
   }
 }
 
