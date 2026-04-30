@@ -20,15 +20,19 @@ if (!callTool) throw new Error("keepergate_call_contract missing");
 console.log(
   "\n→ keepergate_call_contract.invoke(USDC.balanceOf(vitalik)) [agent-style call]"
 );
-const out = await callTool.invoke({
+// `tools.find()` narrows to a union; invoke types aren't co-callable so we
+// invoke through the runnable surface common to every StructuredTool.
+const out = (await (callTool as unknown as {
+  invoke: (input: Record<string, unknown>) => Promise<string>;
+}).invoke({
   network: "ethereum",
   contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   functionName: "balanceOf",
   functionArgs: JSON.stringify(["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]),
-});
+})) as string;
 
 console.log(`  ✓ raw tool output: ${out}`);
-const parsed = JSON.parse(out as string);
+const parsed = JSON.parse(out);
 console.log(`  ✓ parsed:          ${JSON.stringify(parsed)}`);
 if (parsed.kind !== "read")
   throw new Error(`expected kind=read, got ${parsed.kind}`);

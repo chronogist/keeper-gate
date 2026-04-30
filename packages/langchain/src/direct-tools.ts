@@ -19,13 +19,13 @@ const transferSchema = z.object({
     .describe('Human-readable amount, e.g. "0.1" for 0.1 ETH or 0.1 tokens.'),
   tokenAddress: z
     .string()
-    .optional()
+    .nullish()
     .describe(
       "ERC-20 token contract address. Omit for native token (ETH/MATIC/etc.)."
     ),
   gasLimitMultiplier: z
     .string()
-    .optional()
+    .nullish()
     .describe('Gas limit multiplier, e.g. "1.2" for 20% buffer.'),
 });
 
@@ -35,19 +35,19 @@ const callContractSchema = z.object({
   functionName: z.string().describe("Function name to call."),
   functionArgs: z
     .string()
-    .optional()
+    .nullish()
     .describe(
       'JSON array of arguments, e.g. \'["0x...", "1000"]\'. Omit if none.'
     ),
   abi: z
     .string()
-    .optional()
+    .nullish()
     .describe(
       "Contract ABI as JSON string. Omit to auto-fetch from block explorer."
     ),
   value: z
     .string()
-    .optional()
+    .nullish()
     .describe("Wei to send for payable functions."),
 });
 
@@ -57,8 +57,8 @@ const checkAndExecuteSchema = z.object({
   functionName: z
     .string()
     .describe("Read function whose return value is checked."),
-  functionArgs: z.string().optional(),
-  abi: z.string().optional(),
+  functionArgs: z.string().nullish(),
+  abi: z.string().nullish(),
   condition: z
     .object({
       operator: z.enum(["eq", "neq", "gt", "lt", "gte", "lte"]),
@@ -70,10 +70,10 @@ const checkAndExecuteSchema = z.object({
       network: networkSchema,
       contractAddress: z.string(),
       functionName: z.string(),
-      functionArgs: z.string().optional(),
-      abi: z.string().optional(),
-      value: z.string().optional(),
-      gasLimitMultiplier: z.string().optional(),
+      functionArgs: z.string().nullish(),
+      abi: z.string().nullish(),
+      value: z.string().nullish(),
+      gasLimitMultiplier: z.string().nullish(),
     })
     .describe("Write call to execute when the condition is met."),
 });
@@ -83,10 +83,21 @@ const checkAndExecuteSchema = z.object({
  * Each tool maps 1:1 to a DirectExecutor method, returns JSON-stringified
  * results (which is what LangChain agents expect for tool outputs).
  */
+/** LLMs sometimes pass `null` for omitted optional args. Strip nulls. */
+function compact<T>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v !== null && v !== undefined) out[k] = v;
+  }
+  return out as T;
+}
+
 export function buildDirectTools(executor: DirectExecutor) {
   const transferTool = tool(
     async (input) => {
-      const res = await executor.transfer(input);
+      const res = await executor.transfer(
+        compact(input) as Parameters<typeof executor.transfer>[0]
+      );
       return JSON.stringify(res);
     },
     {
@@ -99,7 +110,9 @@ export function buildDirectTools(executor: DirectExecutor) {
 
   const callContractTool = tool(
     async (input) => {
-      const res = await executor.callContract(input);
+      const res = await executor.callContract(
+        compact(input) as Parameters<typeof executor.callContract>[0]
+      );
       // Tag the response so the agent can tell read from write at a glance.
       const tagged = isReadResult(res)
         ? { kind: "read", ...res }
@@ -116,7 +129,11 @@ export function buildDirectTools(executor: DirectExecutor) {
 
   const checkAndExecuteTool = tool(
     async (input) => {
-      const res = await executor.checkAndExecute(input);
+      const cleaned = {
+        ...compact(input),
+        action: compact(input.action),
+      } as Parameters<typeof executor.checkAndExecute>[0];
+      const res = await executor.checkAndExecute(cleaned);
       return JSON.stringify(res);
     },
     {
