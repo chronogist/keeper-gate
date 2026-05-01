@@ -75,11 +75,6 @@ These can be added in the existing `pnpm test` flow today.
 - **Where:** `packages/elizaos/test/smoke.ts`.
 - **Estimated effort:** 15 min.
 
-### B7. `extractTriggerInputFields` pathological inputs
-- **What:** add cases for malformed templates (`{{@}}`, `{{trigger.x}}` without `@`, runaway `{`), huge nested configs.
-- **Where:** `packages/core/test/template-refs.test.ts`.
-- **Estimated effort:** 10 min.
-
 ### B8. `parseKeyValueXml` malformed-response handling
 - **What:** stub `useModel` to return non-XML / partial XML / empty string and verify Eliza handlers surface a clean failure.
 - **Where:** `packages/elizaos/test/smoke.ts`.
@@ -119,8 +114,8 @@ These code paths are exercised — what's missing is variation.
 2. ~~**B9** (isReadResult discriminator)~~ — done.
 3. ~~**B5** (rawRequest error path)~~ — done.
 4. ~~**B2** (cross-chain smoke)~~ — done. Surfaced 3 findings (auto-ABI scope, chain-id workaround, stateMutability requirement).
-5. **B7** (template-refs pathological) — easy to add now.
-6. **B8** (parseKeyValueXml malformed) — same.
+5. ~~**B7** (template-refs pathological)~~ — done.
+6. **B8** (parseKeyValueXml malformed) — easy to add now.
 7. **B3** (multi-step demo) — better demo material.
 8. **B4** (pollUntilDone timeout) — needs fetch mocking, slightly more work.
 9. **B6** (Eliza responses chaining) — needs more elaborate stub.

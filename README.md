@@ -194,6 +194,7 @@ keeper-gate/
 | `isReadResult` discriminator distinguishes read vs. write returns | `pnpm --filter @keepergate/core test:units` |
 | `KeeperHubClient.rawRequest` surfaces HTTP errors as typed `KeeperHubError` | `pnpm --filter @keepergate/core smoke` |
 | Cross-chain reads (Ethereum + Base auto-ABI, Arbitrum via chain id 42161 + manual ABI) | `pnpm --filter @keepergate/core smoke:direct` |
+| Schema inference handles malformed templates (`{{@}}`, missing `@`, mixed garbage, deep nesting, non-string config values) | `pnpm --filter @keepergate/core test:units` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 

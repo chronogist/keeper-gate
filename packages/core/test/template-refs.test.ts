@@ -167,6 +167,118 @@ assert(
   ["address"]
 );
 
+// --- Pathological inputs (B7) -----------------------------------------------
+//
+// Verify the regex doesn't crash, misclassify, or get tricked by malformed
+// templates. A bad workflow JSON shouldn't be able to break schema inference
+// for the rest of the workflow.
+
+// 11. Missing @ -> not a template ref, ignored
+assert(
+  "missing @ ({{trigger.x}}) is ignored",
+  extractTriggerInputFields(
+    [node(TRIGGER_ID, {}), node("a1", { x: "{{trigger.address}}" })],
+    TRIGGER_ID
+  ),
+  []
+);
+
+// 12. Missing field part -> not extracted
+assert(
+  "missing .field ({{@trigger}}) is ignored",
+  extractTriggerInputFields(
+    [node(TRIGGER_ID, {}), node("a1", { x: "{{@trigger}}" })],
+    TRIGGER_ID
+  ),
+  []
+);
+
+// 13. Empty braces {{}} -> not extracted, doesn't crash
+assert(
+  "empty braces ({{}}) ignored",
+  extractTriggerInputFields(
+    [node(TRIGGER_ID, {}), node("a1", { x: "{{}}" })],
+    TRIGGER_ID
+  ),
+  []
+);
+
+// 14. Mixed valid + garbage in same string -> only valid ref extracted
+assert(
+  "mixed valid + garbage extracts only valid",
+  extractTriggerInputFields(
+    [
+      node(TRIGGER_ID, {}),
+      node("a1", {
+        x: "before {{garbage}} {{@trigger.address}} after {{not.a.ref}}",
+      }),
+    ],
+    TRIGGER_ID
+  ),
+  ["address"]
+);
+
+// 15. Numbers, booleans, null in config don't crash the walker
+assert(
+  "non-string config values don't crash",
+  extractTriggerInputFields(
+    [
+      node(TRIGGER_ID, {}),
+      node("a1", {
+        n: 42,
+        b: true,
+        nul: null,
+        addr: "{{@trigger.address}}",
+      }),
+    ],
+    TRIGGER_ID
+  ),
+  ["address"]
+);
+
+// 16. Empty string config value -> no refs, no crash
+assert(
+  "empty string value yields no refs",
+  extractTriggerInputFields(
+    [node(TRIGGER_ID, {}), node("a1", { x: "" })],
+    TRIGGER_ID
+  ),
+  []
+);
+
+// 17. Deeply nested config (10 levels) walked without bailing or recursing forever
+assert(
+  "deeply nested (10 levels) is walked",
+  extractTriggerInputFields(
+    [
+      node(TRIGGER_ID, {}),
+      node(
+        "a1",
+        // 10 levels of nesting wrapping a single template ref
+        Array.from({ length: 10 }).reduce<Record<string, unknown>>(
+          (acc) => ({ wrap: acc }),
+          { addr: "{{@trigger.deep}}" }
+        )
+      ),
+    ],
+    TRIGGER_ID
+  ),
+  ["deep"]
+);
+
+// 18. Multiple refs in a single string ("from {{@trigger.a}} to {{@trigger.b}}")
+assert(
+  "multiple refs in one string both extracted",
+  extractTriggerInputFields(
+    [
+      node(TRIGGER_ID, {}),
+      node("a1", { x: "from {{@trigger.from}} to {{@trigger.to}}" }),
+    ],
+    TRIGGER_ID
+  ),
+  ["from", "to"]
+);
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 if (fail > 0) {
   console.error("\n❌ template-refs tests failed");
