@@ -631,9 +631,9 @@ if (!keepergatePlugin.init) {
     getSetting: () => undefined,
   } as unknown as IAgentRuntime;
   await keepergatePlugin.init({ KEEPERHUB_API_KEY: apiKey! }, stubRuntime);
-  if (registered.length !== 6)
+  if (registered.length !== 10)
     throw new Error(
-      `expected 6 actions registered from config path, got ${registered.length}`
+      `expected 10 actions registered from config path, got ${registered.length}`
     );
   console.log(
     `  ✓ from plugin config: registered ${registered.length} action(s)`
@@ -649,9 +649,9 @@ if (!keepergatePlugin.init) {
       key === "KEEPERHUB_API_KEY" ? apiKey : undefined,
   } as unknown as IAgentRuntime;
   await keepergatePlugin.init({}, stubRuntime);
-  if (registered.length !== 6)
+  if (registered.length !== 10)
     throw new Error(
-      `expected 6 actions registered from getSetting path, got ${registered.length}`
+      `expected 10 actions registered from getSetting path, got ${registered.length}`
     );
   console.log(
     `  ✓ from runtime.getSetting: registered ${registered.length} action(s)`

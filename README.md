@@ -60,7 +60,7 @@ KeeperGate is that boilerplate, written once. **One framework-agnostic core, thi
 
 The hard work — auth, error handling, polling, schema inference, response-shape normalization — lives once in `core`. Each adapter is ~100 lines that translate the same `WorkflowTool` / `DirectExecutor` shape into its framework's native tool contract. Add a new framework adapter, get the entire surface for free.
 
-## What an agent gets — six capabilities
+## What an agent gets — ten capabilities
 
 Each capability ships as a tool in every adapter, mapping to the same `DirectExecutor` / `KeeperHubClient` underneath. Same name in LangChain and OpenClaw (lowercase); upper-cased in ElizaOS to match its `Action.name` convention.
 
@@ -70,8 +70,12 @@ Each capability ships as a tool in every adapter, mapping to the same `DirectExe
 | Direct | `keepergate_call_contract` | `KEEPERGATE_CALL_CONTRACT` | Read or write any contract; auto-fetches ABI |
 | Direct | `keepergate_check_and_execute` | `KEEPERGATE_CHECK_AND_EXECUTE` | Atomic read → condition → conditional write |
 | Direct | `keepergate_get_execution_status` | `KEEPERGATE_GET_EXECUTION_STATUS` | Look up tx hash + explorer link for a previous write |
-| Workflow | `keepergate_list_workflows` | `KEEPERGATE_LIST_WORKFLOWS` | Discover workflows the user pre-built in the KeeperHub UI |
-| Workflow | `keepergate_run_workflow` | `KEEPERGATE_RUN_WORKFLOW` | Trigger a workflow by id, poll to terminal status |
+| Workflow (read) | `keepergate_list_workflows` | `KEEPERGATE_LIST_WORKFLOWS` | Discover workflows the user pre-built in the KeeperHub UI |
+| Workflow (run) | `keepergate_run_workflow` | `KEEPERGATE_RUN_WORKFLOW` | Trigger a workflow by id, poll to terminal status |
+| Workflow (CRUD) | `keepergate_create_workflow` | `KEEPERGATE_CREATE_WORKFLOW` | Create a new workflow with a name + description |
+| Workflow (CRUD) | `keepergate_update_workflow` | `KEEPERGATE_UPDATE_WORKFLOW` | Patch name / description / nodes / edges |
+| Workflow (CRUD) | `keepergate_delete_workflow` | `KEEPERGATE_DELETE_WORKFLOW` | Delete by id (force-cascade optional) |
+| Workflow (CRUD) | `keepergate_duplicate_workflow` | `KEEPERGATE_DUPLICATE_WORKFLOW` | Clone a workflow as `<original> (Copy)` |
 
 Every operation runs through KeeperHub's execution layer — the agent inherits retries, gas optimization, MEV protection, and full audit trails with no extra wiring.
 
@@ -143,6 +147,20 @@ The agent figures out the multi-step flow on its own:
 1. `keepergate_call_contract` to read the balance
 2. `keepergate_list_workflows` to find "rebalance"
 3. `keepergate_run_workflow` to trigger it
+
+Or, for *creating* workflows on the agent's own initiative:
+
+```ts
+await agent.invoke({
+  messages: [{
+    role: "user",
+    content: "Make me a workflow called 'Treasury Watch' for monitoring my USDC.",
+  }],
+});
+
+// Agent picks: keepergate_create_workflow → returns id
+//              keepergate_update_workflow → adds Check Balance node
+```
 
 ### ElizaOS
 
@@ -221,6 +239,7 @@ keeper-gate/
 | `pollUntilDone` honours `timeoutMs` and returns terminal status when reached | `pnpm --filter @keepergate/core test:units` |
 | ElizaOS action chaining: providers from prior `responses` are merged into `composeState` | `pnpm --filter @keepergate/elizaos smoke` |
 | OpenClaw plugin entry + tool factory + 2 live `execute()` round-trips | `pnpm --filter @keepergate/openclaw smoke` |
+| Workflow CRUD round-trip (create → duplicate → update → delete) live in all 3 adapters | `pnpm --filter @keepergate/{langchain,elizaos,openclaw} smoke` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 

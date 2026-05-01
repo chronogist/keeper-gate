@@ -145,50 +145,50 @@ console.log("\n→ Workflow CRUD round-trip (create / duplicate / update / delet
 {
   const sig = new AbortController().signal;
   const find = (n: string) => tools.find((t) => t.name === n)!;
-  const json = (s: string | undefined) => JSON.parse(s ?? "{}");
+  const text = (r: { content: unknown[] }): string =>
+    (r.content?.[0] as { text?: string } | undefined)?.text ?? "{}";
+  const json = (s: string) => JSON.parse(s);
 
   const c = json(
-    (
+    text(
       await find("keepergate_create_workflow").execute(
         "tc_create",
         { name: "openclaw-smoke-temp", description: "ephemeral" },
         sig
       )
-    ).content?.[0]?.text
+    )
   );
   console.log(`  ✓ create     -> ${c.id}`);
 
   const d = json(
-    (
+    text(
       await find("keepergate_duplicate_workflow").execute(
         "tc_dup",
         { workflowId: c.id },
         sig
       )
-    ).content?.[0]?.text
+    )
   );
   console.log(`  ✓ duplicate  -> ${d.id}  (${d.name})`);
 
   const u = json(
-    (
+    text(
       await find("keepergate_update_workflow").execute(
         "tc_upd",
         { workflowId: c.id, description: "updated by openclaw smoke" },
         sig
       )
-    ).content?.[0]?.text
+    )
   );
   console.log(`  ✓ update     -> ${u.id}`);
 
   for (const id of [c.id, d.id]) {
-    json(
-      (
-        await find("keepergate_delete_workflow").execute(
-          "tc_del",
-          { workflowId: id, force: true },
-          sig
-        )
-      ).content?.[0]?.text
+    text(
+      await find("keepergate_delete_workflow").execute(
+        "tc_del",
+        { workflowId: id, force: true },
+        sig
+      )
     );
   }
   console.log(`  ✓ delete     -> ${c.id}, ${d.id}`);
