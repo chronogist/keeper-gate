@@ -57,12 +57,6 @@ Cannot be tested from the repo today; requires setup outside our control.
 
 These can be added in the existing `pnpm test` flow today.
 
-### B4. `pollUntilDone` timeout path
-- **What:** verify the timeout error fires with the expected message when an execution doesn't terminate in time.
-- **Need:** mock fetch returning persistent `running` status.
-- **Where:** new `packages/core/test/poll-timeout.test.ts`.
-- **Estimated effort:** 10 min.
-
 ### B6. Eliza handler `responses` parameter (action chaining)
 - **What:** invoke a handler with a non-empty `responses` array and assert `composeState` is called with the providers from those responses.
 - **Why it matters:** Eliza v1's action-chaining contract.
