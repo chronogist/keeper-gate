@@ -27,7 +27,7 @@ Extract:
 <description>optional one-line description of what the workflow does</description>`;
 
 const UPDATE_TEMPLATE = `The user wants to update a KeeperHub workflow. Extract only the fields that should change:
-<workflowId>the workflow id to update (REQUIRED)</workflowId>
+<workflowId>the workflow id to update (REQUIRED - format: alphanumeric like "o1kdn23oq3f03j61nx7og", NOT an 0x address)</workflowId>
 <name>new name, or empty to keep current</name>
 <description>new description, or empty to keep current</description>
 <nodesJson>JSON-encoded array of WorkflowNode objects to replace the current nodes, or empty to keep current</nodesJson>
@@ -137,24 +137,28 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       }>(runtime, message, state, RUN_TEMPLATE, responses);
 
       // Fallback: if extraction failed, try to extract workflowId from the message text
-      if (!args?.workflowId || args.workflowId.trim() === "") {
+      if (!args?.workflowId || args.workflowId.trim() === "" || args.workflowId.match(/^0x[a-fA-F0-9]{40}$/)) {
         const userText = message.content?.text ?? "";
         logger.warn(
           {
             args,
             messageText: userText.slice(0, 150),
             fallbackAttempt: true,
+            isEthereumAddress: args?.workflowId?.match(/^0x[a-fA-F0-9]{40}$/),
           },
-          "[keepergate] run workflow: LLM extraction returned empty, trying fallback"
+          "[keepergate] run workflow: LLM extraction returned empty or wrong format, trying fallback"
         );
 
-        // Try to find workflow ID patterns
-        const idMatch = userText.match(
-          /(?:run|trigger|execute)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
-        ) ||
-          userText.match(/\b([a-zA-Z0-9_]{10,})\b/);
+        // Try to find workflow ID patterns, excluding 0x addresses
+        let idMatch = userText.match(
+          /(?:run|trigger|execute)\s+(?:workflow\s+)?(?:["'])?([a-z][a-zA-Z0-9_-]{8,})(?:["'])?/i
+        );
+        
+        if (!idMatch) {
+          idMatch = userText.match(/\b([a-z][a-zA-Z0-9_-]{8,})\b/);
+        }
 
-        if (idMatch && idMatch[1]) {
+        if (idMatch && idMatch[1] && !idMatch[1].match(/^0x/)) {
           args = {
             workflowId: idMatch[1].trim(),
             input: args?.input,
@@ -358,23 +362,30 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       }>(runtime, message, state, UPDATE_TEMPLATE, responses);
 
       // Fallback: if extraction failed, try to extract workflowId
-      if (!args?.workflowId || args.workflowId.trim() === "") {
+      if (!args?.workflowId || args.workflowId.trim() === "" || args.workflowId.match(/^0x[a-fA-F0-9]{40}$/)) {
         const userText = message.content?.text ?? "";
         logger.warn(
           {
             args,
             messageText: userText.slice(0, 150),
             fallbackAttempt: true,
+            isEthereumAddress: args?.workflowId?.match(/^0x[a-fA-F0-9]{40}$/),
           },
-          "[keepergate] update workflow: LLM extraction returned empty, trying fallback"
+          "[keepergate] update workflow: LLM extraction returned empty or wrong format, trying fallback"
         );
 
-        const idMatch = userText.match(
-          /(?:update|edit|rename|modify)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
-        ) ||
-          userText.match(/\b([a-zA-Z0-9_]{10,})\b/);
+        // First, try to find workflow IDs that start with lowercase letters (typical KeeperHub IDs)
+        // Exclude 0x addresses (Ethereum addresses)
+        let idMatch = userText.match(/\b([a-z][a-zA-Z0-9_-]{8,})\b/);
+        
+        // If that fails, try to find IDs after "update" or "modify" keywords
+        if (!idMatch) {
+          idMatch = userText.match(
+            /(?:update|edit|rename|modify)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]{8,})(?:["'])?/i
+          );
+        }
 
-        if (idMatch && idMatch[1]) {
+        if (idMatch && idMatch[1] && !idMatch[1].match(/^0x/)) {
           args = {
             ...args,
             workflowId: idMatch[1].trim(),
@@ -474,27 +485,34 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       );
 
       // Fallback: if extraction failed, try to extract workflowId from the message text
-      if (!args?.workflowId || args.workflowId.trim() === "") {
+      if (!args?.workflowId || args.workflowId.trim() === "" || args.workflowId.match(/^0x[a-fA-F0-9]{40}$/)) {
         const userText = message.content?.text ?? "";
         logger.warn(
           {
             args,
             messageText: userText.slice(0, 150),
             fallbackAttempt: true,
+            isEthereumAddress: args?.workflowId?.match(/^0x[a-fA-F0-9]{40}$/),
           },
-          "[keepergate] delete workflow: LLM extraction returned empty, trying fallback"
+          "[keepergate] delete workflow: LLM extraction returned empty or wrong format, trying fallback"
         );
 
-        // Try to find workflow ID patterns:
-        // 1. Explicit IDs like "wf_abc", "omfyxouhxbls1qmtimg7c", etc
+        // Try to find workflow ID patterns, excluding 0x addresses:
+        // 1. IDs that start with lowercase letters (typical KeeperHub IDs)
         // 2. After "delete" or "remove" keywords
-        const idMatch = userText.match(
-          /(?:delete|remove|delete workflow|remove workflow)\s+(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
-        ) ||
-          userText.match(/\b([a-zA-Z0-9_]{10,})\b/) || // long alphanumeric strings (likely IDs)
-          userText.match(/(?:workflow|id)?\s+["']?([a-zA-Z0-9_-]+)["']?\s+(?:titled|named|called|")/i);
+        let idMatch = userText.match(/\b([a-z][a-zA-Z0-9_-]{8,})\b/);
+        
+        if (!idMatch) {
+          idMatch = userText.match(
+            /(?:delete|remove|delete workflow|remove workflow)\s+(?:["'])?([a-zA-Z0-9_-]{8,})(?:["'])?/i
+          );
+        }
+        
+        if (!idMatch) {
+          idMatch = userText.match(/(?:workflow|id)?\s+["']?([a-zA-Z0-9_-]{8,})["']?\s+(?:titled|named|called|")/i);
+        }
 
-        if (idMatch && idMatch[1]) {
+        if (idMatch && idMatch[1] && !idMatch[1].match(/^0x/)) {
           args = {
             workflowId: idMatch[1].trim(),
             force: args?.force,
@@ -575,23 +593,28 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       );
 
       // Fallback: if extraction failed, try to extract workflowId
-      if (!args?.workflowId || args.workflowId.trim() === "") {
+      if (!args?.workflowId || args.workflowId.trim() === "" || args.workflowId.match(/^0x[a-fA-F0-9]{40}$/)) {
         const userText = message.content?.text ?? "";
         logger.warn(
           {
             args,
             messageText: userText.slice(0, 150),
             fallbackAttempt: true,
+            isEthereumAddress: args?.workflowId?.match(/^0x[a-fA-F0-9]{40}$/),
           },
-          "[keepergate] duplicate workflow: LLM extraction returned empty, trying fallback"
+          "[keepergate] duplicate workflow: LLM extraction returned empty or wrong format, trying fallback"
         );
 
-        const idMatch = userText.match(
-          /(?:duplicate|clone|copy)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
-        ) ||
-          userText.match(/\b([a-zA-Z0-9_]{10,})\b/);
+        // Try to find workflow ID patterns, excluding 0x addresses
+        let idMatch = userText.match(
+          /(?:duplicate|clone|copy)\s+(?:workflow\s+)?(?:["'])?([a-z][a-zA-Z0-9_-]{8,})(?:["'])?/i
+        );
+        
+        if (!idMatch) {
+          idMatch = userText.match(/\b([a-z][a-zA-Z0-9_-]{8,})\b/);
+        }
 
-        if (idMatch && idMatch[1]) {
+        if (idMatch && idMatch[1] && !idMatch[1].match(/^0x/)) {
           args = {
             workflowId: idMatch[1].trim(),
           };
