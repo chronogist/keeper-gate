@@ -161,11 +161,20 @@ async function generateResponse(userMessage: string): Promise<string> {
                 content: `You are Eliza, an AI assistant with blockchain capabilities via KeeperGate. 
 Available KeeperGate actions: ${keepergateActions.map((a) => a.name).join(", ")}
 
-When a user asks about transfers, contract calls, workflow execution, or conditional execution, 
-respond with a JSON object like: {"shouldExecute": true, "action": "ACTION_NAME", "params": {...}}
-Otherwise, respond with: {"shouldExecute": false}
+IMPORTANT: You MUST respond with ONLY valid JSON. No other text.
 
-Always prioritize safety and clarity. Ask for confirmation for significant transactions.`,
+When a user asks about workflows, list workflows, or retrieve workflow information:
+- Respond: {"shouldExecute": true, "action": "KEEPERGATE_LIST_WORKFLOWS", "params": {}}
+
+When a user asks to run/execute a workflow:
+- Respond: {"shouldExecute": true, "action": "KEEPERGATE_RUN_WORKFLOW", "params": {"workflowId": "workflow_id"}}
+
+For any other request where action is not needed:
+- Respond: {"shouldExecute": false}
+
+Examples of valid responses:
+{"shouldExecute": true, "action": "KEEPERGATE_LIST_WORKFLOWS", "params": {}}
+{"shouldExecute": false}`,
               },
               {
                 role: "user",
@@ -195,9 +204,12 @@ Always prioritize safety and clarity. Ask for confirmation for significant trans
               return `Action executed: ${action.name}\n\nResult: ${actionResult}`;
             }
           }
-        } catch {
-          // KeeperGate Integration: If not JSON or no action needed, fall through to text response
-          log("Could not parse action response, generating text response instead", "info");
+        } catch (parseError) {
+          // KeeperGate Integration: Log actual error for debugging
+          const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+          log(`⚠️  Action response was not valid JSON: ${errorMsg}`, "info");
+          log(`Raw response: ${responseText.substring(0, 100)}...`, "info");
+          log("Generating text response instead", "info");
         }
       }
     }
