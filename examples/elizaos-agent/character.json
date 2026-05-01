@@ -8,7 +8,7 @@
   "modelProvider": "openai",
   "settings": {
     "secrets": {
-      "KEEPERHUB_API_KEY": ""
+      "KEEPERHUB_API_KEY": "kh_MKnQt8wrEay1_qxZcyCEBXbWPKtxSvMI"
     },
     "voice": {
       "model": "en_US-neural2-c"

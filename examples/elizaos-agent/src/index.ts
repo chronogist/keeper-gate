@@ -48,10 +48,20 @@ function log(message: string, type: "info" | "log" | "tool" | "response" = "log"
 let keepergateClient: KeeperHubClient | null = null;
 let keepergateActions: Array<{ name: string; handler: (params: unknown) => Promise<string> }> = [];
 
+// KeeperGate Integration: Load character configuration
+import characterData from "../character.json" assert { type: "json" };
+
 async function initializeKeeperGate(): Promise<void> {
-  const keeperhubApiKey = process.env.KEEPERHUB_API_KEY;
+  // KeeperGate Integration: Try to get API key from env first, then from character.json
+  let keeperhubApiKey = process.env.KEEPERHUB_API_KEY;
+  
+  if (!keeperhubApiKey && characterData.settings?.secrets?.KEEPERHUB_API_KEY) {
+    keeperhubApiKey = characterData.settings.secrets.KEEPERHUB_API_KEY as string;
+    log("ℹ️  Loaded KEEPERHUB_API_KEY from character.json", "info");
+  }
+  
   if (!keeperhubApiKey) {
-    log("⚠️  KEEPERHUB_API_KEY not set. KeeperGate features will be unavailable.", "info");
+    log("⚠️  KEEPERHUB_API_KEY not set. Add it to .env or character.json", "info");
     return;
   }
 
