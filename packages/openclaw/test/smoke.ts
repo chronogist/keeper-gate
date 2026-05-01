@@ -57,7 +57,7 @@ console.log(`  ✓ registered 1 tool factory`);
 // Build a minimal OpenClawPluginToolContext with our API key in the
 // canonical OpenClaw plugin-config location.
 
-console.log("\n→ Tool factory yields all 6 AnyAgentTool entries");
+console.log("\n→ Tool factory yields all 10 AnyAgentTool entries");
 
 const ctx = {
   runtimeConfig: {
@@ -71,8 +71,8 @@ const tools: AnyAgentTool[] = Array.isArray(produced)
   : produced
     ? [produced]
     : [];
-if (tools.length !== 6)
-  throw new Error(`expected 6 tools, got ${tools.length}`);
+if (tools.length !== 10)
+  throw new Error(`expected 10 tools, got ${tools.length}`);
 
 const expected = [
   "keepergate_transfer",
@@ -81,6 +81,10 @@ const expected = [
   "keepergate_get_execution_status",
   "keepergate_list_workflows",
   "keepergate_run_workflow",
+  "keepergate_create_workflow",
+  "keepergate_update_workflow",
+  "keepergate_delete_workflow",
+  "keepergate_duplicate_workflow",
 ];
 for (const name of expected) {
   const t = tools.find((x) => x.name === name);
@@ -135,12 +139,67 @@ console.log(`  ✓ kind: ${callParsed.kind}, result: ${JSON.stringify(callParsed
 if (callParsed.kind !== "read")
   throw new Error(`expected kind=read, got ${callParsed.kind}`);
 
+// --- Workflow CRUD round-trip via tool execute() -------------------------
+
+console.log("\n→ Workflow CRUD round-trip (create / duplicate / update / delete)");
+{
+  const sig = new AbortController().signal;
+  const find = (n: string) => tools.find((t) => t.name === n)!;
+  const json = (s: string | undefined) => JSON.parse(s ?? "{}");
+
+  const c = json(
+    (
+      await find("keepergate_create_workflow").execute(
+        "tc_create",
+        { name: "openclaw-smoke-temp", description: "ephemeral" },
+        sig
+      )
+    ).content?.[0]?.text
+  );
+  console.log(`  ✓ create     -> ${c.id}`);
+
+  const d = json(
+    (
+      await find("keepergate_duplicate_workflow").execute(
+        "tc_dup",
+        { workflowId: c.id },
+        sig
+      )
+    ).content?.[0]?.text
+  );
+  console.log(`  ✓ duplicate  -> ${d.id}  (${d.name})`);
+
+  const u = json(
+    (
+      await find("keepergate_update_workflow").execute(
+        "tc_upd",
+        { workflowId: c.id, description: "updated by openclaw smoke" },
+        sig
+      )
+    ).content?.[0]?.text
+  );
+  console.log(`  ✓ update     -> ${u.id}`);
+
+  for (const id of [c.id, d.id]) {
+    json(
+      (
+        await find("keepergate_delete_workflow").execute(
+          "tc_del",
+          { workflowId: id, force: true },
+          sig
+        )
+      ).content?.[0]?.text
+    );
+  }
+  console.log(`  ✓ delete     -> ${c.id}, ${d.id}`);
+}
+
 // --- buildKeepergateTools convenience export -----------------------------
 
 console.log("\n→ buildKeepergateTools(client) convenience export");
 const direct = buildKeepergateTools(new KeeperHubClient({ apiKey }));
-if (direct.length !== 6)
-  throw new Error(`buildKeepergateTools must return 6 tools, got ${direct.length}`);
+if (direct.length !== 10)
+  throw new Error(`buildKeepergateTools must return 10 tools, got ${direct.length}`);
 console.log(`  ✓ returns ${direct.length} tools`);
 
 console.log("\n✅ openclaw adapter smoke passed");
