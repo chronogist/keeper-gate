@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx --env-file=../../.env src/index.ts",
+    "start:multi": "tsx --env-file=../../.env src/multi-step.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

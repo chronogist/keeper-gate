@@ -196,6 +196,7 @@ keeper-gate/
 | Cross-chain reads (Ethereum + Base auto-ABI, Arbitrum via chain id 42161 + manual ABI) | `pnpm --filter @keepergate/core smoke:direct` |
 | Schema inference handles malformed templates (`{{@}}`, missing `@`, mixed garbage, deep nesting, non-string config values) | `pnpm --filter @keepergate/core test:units` |
 | ElizaOS handlers stay clean on malformed LLM responses (empty / plain text / no envelope / broken XML / missing fields) | `pnpm --filter @keepergate/elizaos smoke` |
+| Real LLM chains 2 tools (list_workflows → run_workflow) in one prompt | `pnpm --filter langchain-demo start:multi` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 

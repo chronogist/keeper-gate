@@ -57,12 +57,6 @@ Cannot be tested from the repo today; requires setup outside our control.
 
 These can be added in the existing `pnpm test` flow today.
 
-### B3. Multi-step LangChain agent flow
-- **What:** prompt that requires picking 2 tools in sequence (e.g. *"List my workflows and run the first one"*).
-- **Why it matters:** much stronger demo material than the single-tool flow.
-- **Where:** new `examples/langchain-demo/src/multi-step.ts`.
-- **Estimated effort:** 15 min.
-
 ### B4. `pollUntilDone` timeout path
 - **What:** verify the timeout error fires with the expected message when an execution doesn't terminate in time.
 - **Need:** mock fetch returning persistent `running` status.
@@ -111,7 +105,7 @@ These code paths are exercised — what's missing is variation.
 4. ~~**B2** (cross-chain smoke)~~ — done. Surfaced 3 findings (auto-ABI scope, chain-id workaround, stateMutability requirement).
 5. ~~**B7** (template-refs pathological)~~ — done.
 6. ~~**B8** (parseKeyValueXml malformed)~~ — done.
-7. **B3** (multi-step demo) — better demo material.
+7. ~~**B3** (multi-step demo)~~ — done. Free gpt-oss-20b chained list_workflows + run_workflow correctly.
 8. **B4** (pollUntilDone timeout) — needs fetch mocking, slightly more work.
 9. **B6** (Eliza responses chaining) — needs more elaborate stub.
 10. **A1 → A2 → A3** — once a testnet wallet is set up.
