@@ -23,6 +23,10 @@ const expected = [
   "KEEPERGATE_GET_EXECUTION_STATUS",
   "KEEPERGATE_LIST_WORKFLOWS",
   "KEEPERGATE_RUN_WORKFLOW",
+  "KEEPERGATE_CREATE_WORKFLOW",
+  "KEEPERGATE_UPDATE_WORKFLOW",
+  "KEEPERGATE_DELETE_WORKFLOW",
+  "KEEPERGATE_DUPLICATE_WORKFLOW",
 ];
 const actual = plugin.actions.map((a) => a.name);
 for (const name of expected) {
@@ -63,6 +67,10 @@ for (const action of plugin.actions as Action[]) {
     KEEPERGATE_GET_EXECUTION_STATUS: msg("did tx direct_abc land?"),
     KEEPERGATE_LIST_WORKFLOWS: msg("show my workflows"),
     KEEPERGATE_RUN_WORKFLOW: msg("run workflow wf_abc"),
+    KEEPERGATE_CREATE_WORKFLOW: msg("create workflow named Treasury Rebalancer"),
+    KEEPERGATE_UPDATE_WORKFLOW: msg("rename workflow wf_abc to Treasury v2"),
+    KEEPERGATE_DELETE_WORKFLOW: msg("delete workflow wf_abc"),
+    KEEPERGATE_DUPLICATE_WORKFLOW: msg("clone workflow wf_abc"),
   };
   const m = positiveMessages[action.name] ?? msg("hello");
   const ok = await action.validate(stubRuntime, m);
@@ -339,6 +347,84 @@ const captureCallback = async (response: { text?: string }) => {
 // first, then runtime.getSetting, then process.env. On success it registers
 // all 6 actions via runtime.registerAction. We exercise all three sources +
 // the missing-key error case.
+
+// --- Workflow CRUD handlers: create -> duplicate -> update -> delete -------
+//
+// Exercises the four new handlers end-to-end with stubbed extraction.
+// Cleans up after itself so the user's KeeperHub account stays tidy.
+
+console.log("\n→ Workflow CRUD handlers (create / duplicate / update / delete)");
+
+{
+  const find = (n: string) =>
+    (plugin.actions as Action[]).find((a) => a.name === n);
+  const make = (xml: string) =>
+    ({
+      composeState: async () => ({}) as State,
+      useModel: async () => xml,
+    }) as unknown as IAgentRuntime;
+
+  // create
+  const created = await find("KEEPERGATE_CREATE_WORKFLOW")!.handler(
+    make(`<response>
+<name>keepergate-elizaos-smoke-temp</name>
+<description>ephemeral workflow created by elizaos smoke</description>
+</response>`),
+    msg("create a workflow"),
+    undefined,
+    undefined,
+    captureCallback
+  );
+  if (!created || typeof created !== "object" || !("success" in created))
+    throw new Error("create handler must return ActionResult");
+  if (!created.success) throw new Error(`create failed: ${created.text}`);
+  const createdId = (created.values as { workflowId?: string } | undefined)
+    ?.workflowId;
+  if (!createdId) throw new Error("create must return workflowId in values");
+  console.log(`  ✓ create     -> ${createdId}`);
+
+  // duplicate
+  const dup = await find("KEEPERGATE_DUPLICATE_WORKFLOW")!.handler(
+    make(`<response><workflowId>${createdId}</workflowId></response>`),
+    msg("duplicate it"),
+    undefined,
+    undefined,
+    captureCallback
+  );
+  const dupId = ((dup as unknown as { values?: { workflowId?: string } }).values
+    ?.workflowId) as string | undefined;
+  if (!dupId) throw new Error(`duplicate failed: ${(dup as unknown as { text?: string })?.text}`);
+  console.log(`  ✓ duplicate  -> ${dupId}`);
+
+  // update
+  const upd = await find("KEEPERGATE_UPDATE_WORKFLOW")!.handler(
+    make(`<response>
+<workflowId>${createdId}</workflowId>
+<description>updated by elizaos smoke</description>
+</response>`),
+    msg("update it"),
+    undefined,
+    undefined,
+    captureCallback
+  );
+  if (!(upd as unknown as { success?: boolean })?.success)
+    throw new Error(`update failed: ${(upd as unknown as { text?: string })?.text}`);
+  console.log(`  ✓ update     -> ${createdId}`);
+
+  // delete (force=true to cascade)
+  for (const id of [createdId, dupId]) {
+    const del = await find("KEEPERGATE_DELETE_WORKFLOW")!.handler(
+      make(`<response><workflowId>${id}</workflowId><force>true</force></response>`),
+      msg("delete it"),
+      undefined,
+      undefined,
+      captureCallback
+    );
+    if (!(del as unknown as { success?: boolean })?.success)
+      throw new Error(`delete failed for ${id}: ${(del as unknown as { text?: string })?.text}`);
+  }
+  console.log(`  ✓ delete     -> ${createdId}, ${dupId}`);
+}
 
 // --- Action chaining: responses parameter (B6) -----------------------------
 //
