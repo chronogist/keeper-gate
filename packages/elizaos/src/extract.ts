@@ -60,9 +60,29 @@ Respond ONLY with the XML fields requested. Do not add any other text.`;
       prompt,
       stopSequences: [],
     });
-    return parseKeyValueXml<T>(raw);
+    
+    if (!raw || typeof raw !== "string") {
+      logger.error(
+        { raw, type: typeof raw },
+        "[keepergate] extractArgs received invalid model response"
+      );
+      return null;
+    }
+
+    const result = parseKeyValueXml<T>(raw);
+    if (!result) {
+      logger.warn(
+        { raw: raw.slice(0, 200), template: hint.slice(0, 200) },
+        "[keepergate] extractArgs failed to parse XML response"
+      );
+      return null;
+    }
+    return result;
   } catch (err) {
-    logger.error({ err }, "[keepergate] extractArgs failed");
+    logger.error(
+      { err, message: message.content?.text?.slice(0, 100) },
+      "[keepergate] extractArgs failed"
+    );
     return null;
   }
 }

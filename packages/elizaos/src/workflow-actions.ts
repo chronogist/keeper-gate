@@ -13,9 +13,18 @@ const RUN_TEMPLATE = `The user wants to run a KeeperHub workflow. Extract:
 <workflowId>the workflow id, e.g. wf_abc123 (look at recent messages for a list_workflows result if needed)</workflowId>
 <input>JSON object of trigger inputs, or {} if none. Example: {"address":"0x..."}</input>`;
 
-const CREATE_TEMPLATE = `The user wants to create a new KeeperHub workflow. Extract:
-<name>human-readable name for the workflow</name>
-<description>one-line description, or empty if none</description>`;
+const CREATE_TEMPLATE = `The user wants to create a new KeeperHub workflow. You must extract:
+- a name for the workflow (look for explicit names like "OG Balance check", or infer from the description of what the workflow should do)
+- an optional description
+
+If the user describes what the workflow should do but doesn't give an explicit name, create a short descriptive name from their description. For example:
+  - User says "check my COMP holdings" -> name="COMP Holdings Checker"
+  - User says "check wallet balance" -> name="Wallet Balance Check"
+  - User says "OG Balance check" -> name="OG Balance check"
+
+Extract:
+<name>the workflow name (REQUIRED - infer from context if needed)</name>
+<description>optional one-line description of what the workflow does</description>`;
 
 const UPDATE_TEMPLATE = `The user wants to update a KeeperHub workflow. Extract only the fields that should change:
 <workflowId>the workflow id to update</workflowId>
@@ -206,20 +215,57 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       callback,
       responses
     ): Promise<ActionResult> => {
-      const args = await extractArgs<{ name: string; description?: string }>(
+      let args = await extractArgs<{ name: string; description?: string }>(
         runtime,
         message,
         state,
         CREATE_TEMPLATE,
         responses
       );
-      if (!args?.name) {
-        return { success: false, text: "No workflow name found in the message." };
+
+      // Fallback: if extraction failed or returned empty name, try to extract from the message text
+      if (!args?.name || args.name.trim() === "") {
+        const userText = message.content?.text ?? "";
+        logger.warn(
+          {
+            args,
+            messageText: userText.slice(0, 150),
+            fallbackAttempt: true,
+          },
+          "[keepergate] create workflow: LLM extraction returned empty, trying fallback"
+        );
+
+        // Try to find patterns like "workflow called X" or "workflow named X"
+        const calledMatch = userText.match(
+          /(?:workflow|check|monitor)(?:\s+(?:called|named|for))?\s+(?:["'])?([^"'\n.!?,]+)/i
+        );
+        if (calledMatch && calledMatch[1]) {
+          args = {
+            name: calledMatch[1].trim(),
+            description: args?.description,
+          };
+          logger.info(
+            { extractedName: args.name },
+            "[keepergate] fallback extraction succeeded"
+          );
+        }
       }
+
+      if (!args?.name || args.name.trim() === "") {
+        logger.error(
+          { args, messageText: message.content?.text?.slice(0, 150) },
+          "[keepergate] create workflow: failed to extract name from message"
+        );
+        return {
+          success: false,
+          text: "No workflow name found in the message. Please specify a name for the workflow (e.g., 'Create a workflow called OG Balance check').",
+        };
+      }
+
       try {
         const wf = await client.createWorkflow({
-          name: args.name,
-          description: args.description || undefined,
+          name: args.name.trim(),
+          description: args.description?.trim() || undefined,
         });
         const text = `Created workflow "${wf.name}" with id ${wf.id}.`;
         await callback?.({ text, actions: ["KEEPERGATE_CREATE_WORKFLOW"] });
@@ -230,6 +276,7 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
           data: { workflow: wf },
         };
       } catch (err) {
+        logger.error({ err }, "[keepergate] createWorkflow failed");
         return {
           success: false,
           text: `Create failed: ${err instanceof Error ? err.message : String(err)}`,
