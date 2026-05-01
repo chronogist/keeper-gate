@@ -18,7 +18,14 @@ const character = {
 };
 ```
 
-That's the whole integration. Any LangChain or ElizaOS agent now has reliable on-chain execution — retries, gas optimization, audit trails — without writing a line of HTTP / RPC / tx-sending code.
+**OpenClaw:**
+
+```bash
+openclaw plugins install @keepergate/openclaw
+openclaw secrets set keepergate.apiKey kh_your_key_here
+```
+
+That's the whole integration. Any LangChain, ElizaOS, or OpenClaw agent now has reliable on-chain execution — retries, gas optimization, audit trails — without writing a line of HTTP / RPC / tx-sending code.
 
 ---
 
@@ -40,23 +47,24 @@ KeeperGate is that boilerplate, written once. **One framework-agnostic core, thi
                             |  template-refs    |  schema inference from {{@trigger.X}}
                             +---------+---------+
                                       |
-                  +-------------------+--------------------+
-                  |                                        |
-        +---------v----------+                  +----------v---------+
-        | @keepergate/       |                  | @keepergate/       |
-        |   langchain        |                  |   elizaos          |
-        |                    |                  |                    |
-        | StructuredTool[]   |                  | Plugin + Action[]  |
-        +--------------------+                  +--------------------+
+                +---------------------+----------------------+
+                |                     |                      |
+      +---------v----------+ +--------v---------+ +----------v----------+
+      | @keepergate/       | | @keepergate/     | | @keepergate/        |
+      |   langchain        | |   elizaos        | |   openclaw          |
+      |                    | |                  | |                     |
+      | StructuredTool[]   | | Plugin +         | | definePluginEntry + |
+      |                    | | Action[]         | | AnyAgentTool[]      |
+      +--------------------+ +------------------+ +---------------------+
 ```
 
 The hard work — auth, error handling, polling, schema inference, response-shape normalization — lives once in `core`. Each adapter is ~100 lines that translate the same `WorkflowTool` / `DirectExecutor` shape into its framework's native tool contract. Add a new framework adapter, get the entire surface for free.
 
 ## What an agent gets — six capabilities
 
-Each capability ships as a tool in LangChain and an action in ElizaOS, mapping to the same `DirectExecutor` / `KeeperHubClient` underneath.
+Each capability ships as a tool in every adapter, mapping to the same `DirectExecutor` / `KeeperHubClient` underneath. Same name in LangChain and OpenClaw (lowercase); upper-cased in ElizaOS to match its `Action.name` convention.
 
-| Category | LangChain tool | ElizaOS action | What it does |
+| Category | LangChain / OpenClaw | ElizaOS | What it does |
 |---|---|---|---|
 | Direct | `keepergate_transfer` | `KEEPERGATE_TRANSFER` | Native + ERC-20 transfers |
 | Direct | `keepergate_call_contract` | `KEEPERGATE_CALL_CONTRACT` | Read or write any contract; auto-fetches ABI |
@@ -101,8 +109,9 @@ Verifies adapters are wired correctly against the live KeeperHub API.
 ```bash
 pnpm --filter @keepergate/core smoke              # workflows API path
 pnpm --filter @keepergate/core smoke:direct       # direct execution API path
-pnpm --filter @keepergate/langchain smoke         # 4 tools through LangChain's StructuredTool interface
-pnpm --filter @keepergate/elizaos smoke           # plugin shape + 6 actions + validate() paths
+pnpm --filter @keepergate/langchain smoke         # 6 tools through LangChain's StructuredTool interface
+pnpm --filter @keepergate/elizaos smoke           # plugin shape + 6 actions + handlers + init paths
+pnpm --filter @keepergate/openclaw smoke          # plugin entry + factory + 2 live tool executes
 ```
 
 ## Use it in your own agent
@@ -158,6 +167,16 @@ Or via `character.json` with the static plugin form:
 
 The plugin's `init` hook reads the API key from plugin config / runtime settings / env and registers all six actions on the runtime.
 
+### OpenClaw
+
+```bash
+openclaw plugins install @keepergate/openclaw
+openclaw plugins enable keepergate
+openclaw secrets set keepergate.apiKey kh_your_key_here
+```
+
+The plugin reads the API key from `~/.openclaw/openclaw.json` under `plugins.entries.keepergate.apiKey` (or env var as fallback) and registers all six tools through OpenClaw's `definePluginEntry` + `registerTool` mechanism. Schemas use TypeBox — OpenClaw's native dialect.
+
 ## Repo layout
 
 ```
@@ -165,7 +184,8 @@ keeper-gate/
 ├── packages/
 │   ├── core/             # @keepergate/core — framework-agnostic engine
 │   ├── langchain/        # @keepergate/langchain — LangChain adapter
-│   └── elizaos/          # @keepergate/elizaos — ElizaOS plugin
+│   ├── elizaos/          # @keepergate/elizaos — ElizaOS plugin
+│   └── openclaw/         # @keepergate/openclaw — OpenClaw plugin
 └── examples/
     └── langchain-demo/   # runnable LLM-driven agent demo
 ```
@@ -177,6 +197,7 @@ keeper-gate/
 - **Zod** for tool schemas (with per-field `.describe()` so the LLM gets argument-level hints)
 - **`@langchain/core`** for the `tool()` factory and `StructuredTool` shape
 - **`@elizaos/core`** v1.7+ for `Plugin`, `Action`, `runtime.useModel`, `parseKeyValueXml`
+- **`openclaw`** v2026.4+ for `definePluginEntry`, `AnyAgentTool`, TypeBox schemas
 - **OpenRouter** for the demo LLM (any OpenAI-compatible endpoint works)
 
 ## What's been verified live against KeeperHub
@@ -199,6 +220,7 @@ keeper-gate/
 | Real LLM chains 2 tools (list_workflows → run_workflow) in one prompt | `pnpm --filter langchain-demo start:multi` |
 | `pollUntilDone` honours `timeoutMs` and returns terminal status when reached | `pnpm --filter @keepergate/core test:units` |
 | ElizaOS action chaining: providers from prior `responses` are merged into `composeState` | `pnpm --filter @keepergate/elizaos smoke` |
+| OpenClaw plugin entry + tool factory + 2 live `execute()` round-trips | `pnpm --filter @keepergate/openclaw smoke` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 
