@@ -101,12 +101,13 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       message,
       state,
       _options,
-      callback
+      callback,
+      responses
     ): Promise<ActionResult> => {
       const args = await extractArgs<{
         workflowId: string;
         input?: string;
-      }>(runtime, message, state, RUN_TEMPLATE);
+      }>(runtime, message, state, RUN_TEMPLATE, responses);
       if (!args?.workflowId) {
         return {
           success: false,

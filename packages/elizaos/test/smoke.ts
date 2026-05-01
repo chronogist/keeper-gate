@@ -340,6 +340,132 @@ const captureCallback = async (response: { text?: string }) => {
 // all 6 actions via runtime.registerAction. We exercise all three sources +
 // the missing-key error case.
 
+// --- Action chaining: responses parameter (B6) -----------------------------
+//
+// Eliza v1's contract: when an action runs as part of a chain, the runtime
+// passes previous actions' messages in the `responses` array. Each Content
+// can carry a `providers: string[]` list. Our handler must propagate those
+// names into composeState so the next action sees the same context the
+// previous one set up.
+
+console.log("\n→ Action chaining via responses[*].content.providers");
+
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_CALL_CONTRACT"
+  );
+  if (!action) throw new Error("missing call_contract action");
+
+  const composeStateCalls: string[][] = [];
+  const stubRuntime = {
+    composeState: async (_msg: Memory, providers: string[]) => {
+      composeStateCalls.push(providers);
+      return {} as State;
+    },
+    useModel: async () =>
+      `<response>
+<network>ethereum</network>
+<contractAddress>0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</contractAddress>
+<functionName>balanceOf</functionName>
+<functionArgs>["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]</functionArgs>
+</response>`,
+  } as unknown as IAgentRuntime;
+
+  const previousResponse = {
+    id: "00000000-0000-0000-0000-000000000010",
+    entityId: "00000000-0000-0000-0000-000000000010",
+    agentId: "00000000-0000-0000-0000-000000000010",
+    roomId: "00000000-0000-0000-0000-000000000010",
+    content: {
+      text: "previous action output",
+      providers: ["WALLET_PROVIDER", "PORTFOLIO_PROVIDER"],
+    },
+    createdAt: Date.now(),
+  } as unknown as Memory;
+
+  const result = await action.handler(
+    stubRuntime,
+    msg("read USDC balance"),
+    undefined,
+    undefined,
+    captureCallback,
+    [previousResponse]
+  );
+
+  if (!result || typeof result !== "object" || !("success" in result)) {
+    throw new Error("handler must return ActionResult");
+  }
+  if (composeStateCalls.length === 0) {
+    throw new Error("expected composeState to be called at least once");
+  }
+
+  const providersUsed = composeStateCalls[0]!;
+  if (!providersUsed.includes("WALLET_PROVIDER"))
+    throw new Error(
+      `expected WALLET_PROVIDER to be merged in; got ${JSON.stringify(providersUsed)}`
+    );
+  if (!providersUsed.includes("PORTFOLIO_PROVIDER"))
+    throw new Error(
+      `expected PORTFOLIO_PROVIDER to be merged in; got ${JSON.stringify(providersUsed)}`
+    );
+  if (!providersUsed.includes("RECENT_MESSAGES"))
+    throw new Error(
+      `expected RECENT_MESSAGES to remain; got ${JSON.stringify(providersUsed)}`
+    );
+
+  console.log(
+    `  ✓ composeState called with: [${providersUsed.join(", ")}]`
+  );
+  console.log(
+    `  ✓ providers from previous response merged + RECENT_MESSAGES preserved`
+  );
+}
+
+// Sanity: when responses is omitted/empty, only RECENT_MESSAGES is used.
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_CALL_CONTRACT"
+  );
+  if (!action) throw new Error("missing call_contract action");
+
+  const composeStateCalls: string[][] = [];
+  const stubRuntime = {
+    composeState: async (_msg: Memory, providers: string[]) => {
+      composeStateCalls.push(providers);
+      return {} as State;
+    },
+    useModel: async () =>
+      `<response>
+<network>ethereum</network>
+<contractAddress>0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</contractAddress>
+<functionName>balanceOf</functionName>
+<functionArgs>["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]</functionArgs>
+</response>`,
+  } as unknown as IAgentRuntime;
+
+  await action.handler(
+    stubRuntime,
+    msg("read USDC balance"),
+    undefined,
+    undefined,
+    captureCallback
+    // no responses arg
+  );
+
+  const providersUsed = composeStateCalls[0]!;
+  if (
+    providersUsed.length !== 1 ||
+    providersUsed[0] !== "RECENT_MESSAGES"
+  ) {
+    throw new Error(
+      `without responses, expected only [RECENT_MESSAGES]; got ${JSON.stringify(providersUsed)}`
+    );
+  }
+  console.log(
+    `  ✓ no responses -> composeState called with [RECENT_MESSAGES] only`
+  );
+}
+
 // --- Malformed LLM responses (B8) ------------------------------------------
 //
 // When the LLM-driven extraction step returns garbage (no XML / partial XML

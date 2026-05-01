@@ -57,12 +57,6 @@ Cannot be tested from the repo today; requires setup outside our control.
 
 These can be added in the existing `pnpm test` flow today.
 
-### B6. Eliza handler `responses` parameter (action chaining)
-- **What:** invoke a handler with a non-empty `responses` array and assert `composeState` is called with the providers from those responses.
-- **Why it matters:** Eliza v1's action-chaining contract.
-- **Where:** `packages/elizaos/test/smoke.ts`.
-- **Estimated effort:** 15 min.
-
 ---
 
 ## C. Tested by code path, but not every input
@@ -101,7 +95,7 @@ These code paths are exercised — what's missing is variation.
 6. ~~**B8** (parseKeyValueXml malformed)~~ — done.
 7. ~~**B3** (multi-step demo)~~ — done. Free gpt-oss-20b chained list_workflows + run_workflow correctly.
 8. ~~**B4** (pollUntilDone timeout)~~ — done.
-9. **B6** (Eliza responses chaining) — needs more elaborate stub.
+9. ~~**B6** (Eliza responses chaining)~~ — done. Caught + fixed a real bug: handlers were ignoring `responses` entirely.
 10. **A1 → A2 → A3** — once a testnet wallet is set up.
 11. **A5** — full Eliza character demo, the natural follow-up after A1–A3.
 

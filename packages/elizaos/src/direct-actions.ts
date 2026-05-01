@@ -54,14 +54,15 @@ export function buildDirectActions(executor: DirectExecutor): Action[] {
       message: Memory,
       state: State | undefined,
       _options,
-      callback: HandlerCallback | undefined
+      callback: HandlerCallback | undefined,
+      responses?: Memory[]
     ): Promise<ActionResult> => {
       const args = await extractArgs<{
         network: string;
         recipientAddress: string;
         amount: string;
         tokenAddress?: string;
-      }>(runtime, message, state, TRANSFER_TEMPLATE);
+      }>(runtime, message, state, TRANSFER_TEMPLATE, responses);
       if (!args?.network || !args.recipientAddress || !args.amount) {
         return {
           success: false,
@@ -125,14 +126,15 @@ export function buildDirectActions(executor: DirectExecutor): Action[] {
       message,
       state,
       _options,
-      callback
+      callback,
+      responses
     ): Promise<ActionResult> => {
       const args = await extractArgs<{
         network: string;
         contractAddress: string;
         functionName: string;
         functionArgs?: string;
-      }>(runtime, message, state, CALL_CONTRACT_TEMPLATE);
+      }>(runtime, message, state, CALL_CONTRACT_TEMPLATE, responses);
       if (!args?.network || !args.contractAddress || !args.functionName) {
         return {
           success: false,
@@ -195,7 +197,8 @@ export function buildDirectActions(executor: DirectExecutor): Action[] {
       message,
       state,
       _options,
-      callback
+      callback,
+      responses
     ): Promise<ActionResult> => {
       const a = await extractArgs<{
         network: string;
@@ -207,7 +210,7 @@ export function buildDirectActions(executor: DirectExecutor): Action[] {
         actionContractAddress: string;
         actionFunctionName: string;
         actionFunctionArgs?: string;
-      }>(runtime, message, state, CHECK_AND_EXECUTE_TEMPLATE);
+      }>(runtime, message, state, CHECK_AND_EXECUTE_TEMPLATE, responses);
       if (
         !a?.network ||
         !a.contractAddress ||
@@ -285,13 +288,15 @@ export function buildDirectActions(executor: DirectExecutor): Action[] {
       message,
       state,
       _options,
-      callback
+      callback,
+      responses
     ): Promise<ActionResult> => {
       const args = await extractArgs<{ executionId: string }>(
         runtime,
         message,
         state,
-        STATUS_TEMPLATE
+        STATUS_TEMPLATE,
+        responses
       );
       if (!args?.executionId) {
         return {
