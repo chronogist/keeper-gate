@@ -57,12 +57,6 @@ Cannot be tested from the repo today; requires setup outside our control.
 
 These can be added in the existing `pnpm test` flow today.
 
-### B2. Cross-chain smoke (Base + Arbitrum)
-- **What:** call `USDC.balanceOf(vitalik)` on Base + Arbitrum + Polygon, not just Ethereum.
-- **Why it matters:** README claims "any chain KeeperHub supports". Cheap to validate.
-- **Where:** `packages/core/test/smoke-direct.ts`.
-- **Estimated effort:** 10 min.
-
 ### B3. Multi-step LangChain agent flow
 - **What:** prompt that requires picking 2 tools in sequence (e.g. *"List my workflows and run the first one"*).
 - **Why it matters:** much stronger demo material than the single-tool flow.
@@ -124,7 +118,7 @@ These code paths are exercised — what's missing is variation.
 1. ~~**B1** (toolkit include filter)~~ — done.
 2. ~~**B9** (isReadResult discriminator)~~ — done.
 3. ~~**B5** (rawRequest error path)~~ — done.
-4. **B2** (cross-chain smoke) — proves a README claim.
+4. ~~**B2** (cross-chain smoke)~~ — done. Surfaced 3 findings (auto-ABI scope, chain-id workaround, stateMutability requirement).
 5. **B7** (template-refs pathological) — easy to add now.
 6. **B8** (parseKeyValueXml malformed) — same.
 7. **B3** (multi-step demo) — better demo material.

@@ -57,6 +57,80 @@ if (cond.executed !== false) {
 }
 console.log(`  ✓ executed: ${cond.executed} (no write attempted)`);
 
+// 2b. Cross-chain reads via auto-ABI.
+// KeeperHub's auto-ABI is supported on a subset of chains (currently:
+// ethereum, sepolia, base, base-sepolia, tempo, solana family). For these
+// the call needs no ABI override at all.
+console.log("\n→ DirectExecutor.callContract: cross-chain reads (auto-ABI)");
+const autoAbiChains: Array<{ network: string; usdc: string; label: string }> = [
+  // Base — native USDC
+  {
+    network: "base",
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    label: "Base",
+  },
+];
+for (const c of autoAbiChains) {
+  const out = await direct.callContract({
+    network: c.network,
+    contractAddress: c.usdc,
+    functionName: "balanceOf",
+    functionArgs: JSON.stringify([VITALIK]),
+  });
+  if (!isReadResult(out))
+    throw new Error(`${c.label}: expected read result`);
+  if (typeof out.result !== "string")
+    throw new Error(`${c.label}: result must be a string`);
+  console.log(`  ✓ ${c.label.padEnd(10)} (auto-ABI)   -> ${out.result}`);
+}
+
+// 2c. Cross-chain reads via manual ABI override.
+// On chains KeeperHub doesn't auto-fetch ABIs for (e.g. Arbitrum), the SDK
+// still works as long as the caller supplies the ABI string. Proves the
+// manual-ABI escape hatch and the 'any chain' claim more honestly.
+console.log("\n→ DirectExecutor.callContract: chains via manual ABI");
+// NB: KeeperHub's ABI-based read/write detection requires the modern
+// `stateMutability` field; the legacy `constant: true` alone is treated
+// as a write call and prompts for a wallet (logged in builder-feedback.md).
+const erc20BalanceOfAbi = JSON.stringify([
+  {
+    inputs: [{ name: "_owner", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ name: "balance", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+]);
+// Chains KeeperHub recognizes only by numeric chain id (see error message
+// from /api/execute/contract-call: 'Unsupported network: arbitrum.
+// Supported: mainnet, ..., or numeric chain IDs').
+const manualAbiChains: Array<{ network: string; usdc: string; label: string }> = [
+  // Arbitrum One — chain id 42161, native USDC
+  {
+    network: "42161",
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    label: "Arbitrum",
+  },
+];
+for (const c of manualAbiChains) {
+  const out = await direct.callContract({
+    network: c.network,
+    contractAddress: c.usdc,
+    functionName: "balanceOf",
+    functionArgs: JSON.stringify([VITALIK]),
+    abi: erc20BalanceOfAbi,
+  });
+  if (!isReadResult(out))
+    throw new Error(`${c.label}: expected read result, got ${JSON.stringify(out)}`);
+  // KeeperHub returns either a bare uint256 string or, for richer functions,
+  // an object whose first value is the decoded balance. Normalize both.
+  const printable =
+    typeof out.result === "string"
+      ? out.result
+      : JSON.stringify(out.result);
+  console.log(`  ✓ ${c.label.padEnd(10)} (manual ABI) -> ${printable}`);
+}
+
 // 3. Status lookup with a fabricated id -> 404 surfaced as KeeperHubError
 console.log(
   "\n→ DirectExecutor.getStatus (fake id, expects 404 → KeeperHubError)"

@@ -121,9 +121,16 @@ export interface DirectCheckAndExecuteInput
   action: DirectContractCallInput;
 }
 
-/** Read-call result (synchronous return). */
+/**
+ * Read-call result (synchronous return).
+ *
+ * KeeperHub returns either a bare value (string for primitive types like
+ * uint256) or an object keyed by the ABI's named output fields. Both are
+ * possible from the same endpoint depending on the function signature, so
+ * callers should treat result as opaque and parse based on what they sent.
+ */
 export interface DirectReadResult {
-  result: string;
+  result: string | Record<string, unknown> | unknown[];
 }
 
 /** Write-call / transfer result (synchronous return). */
