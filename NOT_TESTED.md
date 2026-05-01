@@ -106,7 +106,7 @@ These code paths are exercised — what's missing is variation.
 5. ~~**B7** (template-refs pathological)~~ — done.
 6. ~~**B8** (parseKeyValueXml malformed)~~ — done.
 7. ~~**B3** (multi-step demo)~~ — done. Free gpt-oss-20b chained list_workflows + run_workflow correctly.
-8. **B4** (pollUntilDone timeout) — needs fetch mocking, slightly more work.
+8. ~~**B4** (pollUntilDone timeout)~~ — done.
 9. **B6** (Eliza responses chaining) — needs more elaborate stub.
 10. **A1 → A2 → A3** — once a testnet wallet is set up.
 11. **A5** — full Eliza character demo, the natural follow-up after A1–A3.

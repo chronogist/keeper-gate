@@ -197,6 +197,7 @@ keeper-gate/
 | Schema inference handles malformed templates (`{{@}}`, missing `@`, mixed garbage, deep nesting, non-string config values) | `pnpm --filter @keepergate/core test:units` |
 | ElizaOS handlers stay clean on malformed LLM responses (empty / plain text / no envelope / broken XML / missing fields) | `pnpm --filter @keepergate/elizaos smoke` |
 | Real LLM chains 2 tools (list_workflows → run_workflow) in one prompt | `pnpm --filter langchain-demo start:multi` |
+| `pollUntilDone` honours `timeoutMs` and returns terminal status when reached | `pnpm --filter @keepergate/core test:units` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 
