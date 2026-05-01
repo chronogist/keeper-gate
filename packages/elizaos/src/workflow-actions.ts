@@ -75,6 +75,13 @@ function scanForWorkflowId(
   if (state?.text) sources.push(state.text);
 
   const verbAlt = verbs && verbs.length > 0 ? verbs.join("|") : null;
+  // KeeperHub workflow ids are alphanumeric and always contain at least one
+  // digit (e.g. "ppa2iasa59itskhj6r37y", "o1kdn23oq3fo3j6lnx7og"). Requiring
+  // a digit prevents the bare-id pass from grabbing English words like
+  // "conversationally" or "workflows" out of the user's prose.
+  const hasDigit = (s: string) => /\d/.test(s);
+  const isLikelyId = (s: string) =>
+    !ETH_ADDRESS.test(s) && hasDigit(s);
 
   for (const text of sources) {
     if (verbAlt) {
@@ -84,15 +91,18 @@ function scanForWorkflowId(
           "i"
         )
       );
-      if (m && m[1] && !ETH_ADDRESS.test(m[1])) return m[1].trim();
+      if (m && m[1] && isLikelyId(m[1])) return m[1].trim();
     }
     const m2 = text.match(/workflow\s+["'`]?([a-z][a-zA-Z0-9_-]{8,})["'`]?/i);
-    if (m2 && m2[1] && !ETH_ADDRESS.test(m2[1])) return m2[1].trim();
+    if (m2 && m2[1] && isLikelyId(m2[1])) return m2[1].trim();
   }
 
   for (const text of sources) {
-    const m = text.match(/\b([a-z][a-zA-Z0-9]{15,})\b/);
-    if (m && m[1] && !ETH_ADDRESS.test(m[1])) return m[1].trim();
+    const re = /\b([a-z][a-zA-Z0-9]{14,})\b/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m[1] && isLikelyId(m[1])) return m[1].trim();
+    }
   }
   return null;
 }
