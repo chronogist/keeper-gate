@@ -40,6 +40,14 @@ const DELETE_TEMPLATE = `The user wants to delete a KeeperHub workflow. Extract:
 const DUPLICATE_TEMPLATE = `The user wants to duplicate a KeeperHub workflow. Extract:
 <workflowId>the workflow id to clone (REQUIRED)</workflowId>`;
 
+const GET_TEMPLATE = `The user wants to view the details (actions/nodes) of a KeeperHub workflow. Extract:
+<workflowId>the workflow id to inspect (REQUIRED - look for ids in recent messages, e.g. "ppa2iasa59itskhj6r37y")</workflowId>`;
+
+const ADD_NODE_TEMPLATE = `The user wants to add an action node to an existing KeeperHub workflow. Extract:
+<workflowId>the target workflow id (REQUIRED)</workflowId>
+<nodeJson>JSON object for the new node, with fields: id (string), type ("action"|"condition"|"forEach"), data ({ label?, description?, type?, config? }), and optional position. REQUIRED.</nodeJson>
+<connectFrom>id of an existing node to draw an edge FROM (optional - defaults to the last node in the workflow)</connectFrom>`;
+
 const HAS_INTENT = (m: Memory, words: string[]): boolean => {
   const text = (m.content?.text ?? "").toLowerCase();
   return words.some((w) => text.includes(w));
@@ -606,5 +614,230 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
     ],
   };
 
-  return [listAction, runAction, createAction, updateAction, deleteAction, duplicateAction];
+  const getAction: Action = {
+    name: "KEEPERGATE_GET_WORKFLOW",
+    similes: [
+      "VIEW_WORKFLOW",
+      "SHOW_WORKFLOW_DETAILS",
+      "WORKFLOW_ACTIONS",
+      "LIST_WORKFLOW_ACTIONS",
+      "INSPECT_WORKFLOW",
+    ],
+    description:
+      "Fetch a single KeeperHub workflow by id and return its nodes (actions/triggers/conditions) and edges. Use this when the user asks what actions a workflow has, what's inside a workflow, or to inspect a workflow's structure.",
+    validate: async (_runtime, message) =>
+      HAS_INTENT(message, [
+        "what actions",
+        "which actions",
+        "view workflow",
+        "show workflow details",
+        "details of workflow",
+        "inside the workflow",
+        "actions in",
+        "actions does",
+        "actions they",
+        "inspect workflow",
+        "workflow have",
+      ]),
+    handler: async (
+      runtime,
+      message,
+      state,
+      _options,
+      callback,
+      responses
+    ): Promise<ActionResult> => {
+      let args = await extractArgs<{ workflowId: string }>(
+        runtime,
+        message,
+        state,
+        GET_TEMPLATE,
+        responses
+      );
+
+      if (!args?.workflowId || args.workflowId.trim() === "" || ETH_ADDRESS.test(args.workflowId)) {
+        const found = scanForWorkflowId(message, responses, state);
+        logger.warn(
+          { args, fallbackAttempt: true, found },
+          "[keepergate] get workflow: LLM extraction empty/invalid, trying fallback"
+        );
+        if (found) args = { workflowId: found };
+      }
+
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        return {
+          success: false,
+          text: "No workflowId found. Please specify which workflow to inspect (e.g., 'Show actions in workflow ppa2iasa59itskhj6r37y').",
+        };
+      }
+
+      try {
+        const wf = await client.getWorkflow(args.workflowId.trim());
+        const nodes = wf.nodes ?? [];
+        if (nodes.length === 0) {
+          const text = `Workflow ${wf.id} ("${wf.name}") has no nodes.`;
+          await callback?.({ text, actions: ["KEEPERGATE_GET_WORKFLOW"] });
+          return { success: true, text, data: { workflow: wf } };
+        }
+        const lines = nodes.map((n, i) => {
+          const label = n.data?.label ?? n.data?.type ?? n.type;
+          const subtype = n.data?.type ? ` (${n.data.type})` : "";
+          const desc = n.data?.description ? ` — ${n.data.description}` : "";
+          return `  ${i + 1}. [${n.type}] ${label}${subtype}${desc}  id=${n.id}`;
+        });
+        const text = `Workflow ${wf.id} ("${wf.name}") has ${nodes.length} node(s):\n${lines.join("\n")}`;
+        await callback?.({ text, actions: ["KEEPERGATE_GET_WORKFLOW"] });
+        return {
+          success: true,
+          text,
+          values: { workflowId: wf.id, nodeCount: nodes.length },
+          data: { workflow: wf },
+        };
+      } catch (err) {
+        logger.error({ err }, "[keepergate] getWorkflow failed");
+        return {
+          success: false,
+          text: `Failed to fetch workflow: ${err instanceof Error ? err.message : String(err)}`,
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+      }
+    },
+    examples: [
+      [
+        {
+          name: "{{user}}",
+          content: { text: "What actions does my COMP workflow have?" },
+        },
+        {
+          name: "{{agent}}",
+          content: {
+            text: "Fetching workflow details...",
+            actions: ["KEEPERGATE_GET_WORKFLOW"],
+          },
+        },
+      ],
+    ],
+  };
+
+  const addNodeAction: Action = {
+    name: "KEEPERGATE_ADD_WORKFLOW_NODE",
+    similes: ["ADD_NODE", "ADD_ACTION", "APPEND_NODE", "ADD_WORKFLOW_ACTION"],
+    description:
+      "Append a new node (action/condition/forEach) to an existing KeeperHub workflow. Fetches the current nodes/edges, appends the new node, and connects it to a chosen source node (default: the last node).",
+    validate: async (_runtime, message) =>
+      HAS_INTENT(message, [
+        "add action",
+        "add a node",
+        "add node",
+        "append action",
+        "add step",
+        "add an action",
+      ]),
+    handler: async (
+      runtime,
+      message,
+      state,
+      _options,
+      callback,
+      responses
+    ): Promise<ActionResult> => {
+      const args = await extractArgs<{
+        workflowId: string;
+        nodeJson: string;
+        connectFrom?: string;
+      }>(runtime, message, state, ADD_NODE_TEMPLATE, responses);
+
+      let workflowId = args?.workflowId?.trim();
+      if (!workflowId || ETH_ADDRESS.test(workflowId)) {
+        workflowId = scanForWorkflowId(message, responses, state) ?? "";
+      }
+
+      if (!workflowId) {
+        return {
+          success: false,
+          text: "No workflowId found. Please specify which workflow to add the node to.",
+        };
+      }
+      if (!args?.nodeJson || args.nodeJson.trim() === "") {
+        return {
+          success: false,
+          text: "No nodeJson provided. Please describe the action to add (id, type, data.label, data.config).",
+        };
+      }
+
+      let newNode;
+      try {
+        newNode = JSON.parse(args.nodeJson);
+      } catch (err) {
+        return {
+          success: false,
+          text: `Invalid nodeJson: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+      if (!newNode || typeof newNode !== "object" || !newNode.id || !newNode.type) {
+        return {
+          success: false,
+          text: "nodeJson must be an object with at least { id, type } fields.",
+        };
+      }
+
+      try {
+        const wf = await client.getWorkflow(workflowId);
+        const nodes = [...(wf.nodes ?? []), newNode];
+        const sourceId = args.connectFrom?.trim() || wf.nodes?.[wf.nodes.length - 1]?.id;
+        const edges = [...(wf.edges ?? [])];
+        if (sourceId) {
+          edges.push({
+            id: `edge-${sourceId}-${newNode.id}`,
+            source: sourceId,
+            target: newNode.id,
+          });
+        }
+        const updated = await client.updateWorkflow(workflowId, { nodes, edges });
+        const text = `Added node "${newNode.id}" to workflow ${updated.id}. Now has ${updated.nodes.length} node(s).`;
+        await callback?.({ text, actions: ["KEEPERGATE_ADD_WORKFLOW_NODE"] });
+        return {
+          success: true,
+          text,
+          values: { workflowId: updated.id, nodeId: newNode.id },
+          data: { workflow: updated },
+        };
+      } catch (err) {
+        logger.error({ err }, "[keepergate] addWorkflowNode failed");
+        return {
+          success: false,
+          text: `Add node failed: ${err instanceof Error ? err.message : String(err)}`,
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+      }
+    },
+    examples: [
+      [
+        {
+          name: "{{user}}",
+          content: {
+            text: 'Add an action node to ppa2iasa59itskhj6r37y: {"id":"a1","type":"action","data":{"label":"Send alert","type":"webhook","config":{"url":"https://..."}}}',
+          },
+        },
+        {
+          name: "{{agent}}",
+          content: {
+            text: "Adding node...",
+            actions: ["KEEPERGATE_ADD_WORKFLOW_NODE"],
+          },
+        },
+      ],
+    ],
+  };
+
+  return [
+    listAction,
+    getAction,
+    runAction,
+    createAction,
+    updateAction,
+    deleteAction,
+    duplicateAction,
+    addNodeAction,
+  ];
 }
