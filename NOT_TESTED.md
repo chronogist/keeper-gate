@@ -75,11 +75,6 @@ These can be added in the existing `pnpm test` flow today.
 - **Where:** `packages/elizaos/test/smoke.ts`.
 - **Estimated effort:** 15 min.
 
-### B8. `parseKeyValueXml` malformed-response handling
-- **What:** stub `useModel` to return non-XML / partial XML / empty string and verify Eliza handlers surface a clean failure.
-- **Where:** `packages/elizaos/test/smoke.ts`.
-- **Estimated effort:** 10 min.
-
 ---
 
 ## C. Tested by code path, but not every input
@@ -115,7 +110,7 @@ These code paths are exercised — what's missing is variation.
 3. ~~**B5** (rawRequest error path)~~ — done.
 4. ~~**B2** (cross-chain smoke)~~ — done. Surfaced 3 findings (auto-ABI scope, chain-id workaround, stateMutability requirement).
 5. ~~**B7** (template-refs pathological)~~ — done.
-6. **B8** (parseKeyValueXml malformed) — easy to add now.
+6. ~~**B8** (parseKeyValueXml malformed)~~ — done.
 7. **B3** (multi-step demo) — better demo material.
 8. **B4** (pollUntilDone timeout) — needs fetch mocking, slightly more work.
 9. **B6** (Eliza responses chaining) — needs more elaborate stub.

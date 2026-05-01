@@ -340,6 +340,71 @@ const captureCallback = async (response: { text?: string }) => {
 // all 6 actions via runtime.registerAction. We exercise all three sources +
 // the missing-key error case.
 
+// --- Malformed LLM responses (B8) ------------------------------------------
+//
+// When the LLM-driven extraction step returns garbage (no XML / partial XML
+// / missing required fields), handlers must surface a clean ActionResult
+// failure -- not throw, not crash, not run with bogus inputs. Each case
+// uses the call_contract action with a different malformed useModel return.
+
+console.log(
+  "\n→ Malformed LLM responses (parseKeyValueXml resilience)"
+);
+
+{
+  const action = (plugin.actions as Action[]).find(
+    (a) => a.name === "KEEPERGATE_CALL_CONTRACT"
+  );
+  if (!action) throw new Error("missing call_contract action");
+
+  const malformedCases: Array<{ label: string; xml: string }> = [
+    { label: "empty string", xml: "" },
+    { label: "plain text, no XML", xml: "I cannot help with that request." },
+    {
+      label: "XML with no <response> envelope",
+      xml: "<network>ethereum</network><contractAddress>0xabc</contractAddress>",
+    },
+    {
+      label: "<response> envelope but missing required fields",
+      xml: "<response>\n<network>ethereum</network>\n</response>",
+    },
+    {
+      label: "broken XML (unclosed tag)",
+      xml: "<response><network>ethereum<contractAddress>0xabc</response>",
+    },
+  ];
+
+  for (const c of malformedCases) {
+    const stubRuntime = {
+      composeState: async () => ({}) as State,
+      useModel: async () => c.xml,
+    } as unknown as IAgentRuntime;
+    const result = await action.handler(
+      stubRuntime,
+      msg("read something somewhere"),
+      undefined,
+      undefined,
+      captureCallback
+    );
+    if (!result || typeof result !== "object" || !("success" in result)) {
+      throw new Error(`${c.label}: handler must return ActionResult`);
+    }
+    if (result.success) {
+      throw new Error(
+        `${c.label}: expected success=false on malformed input, got success=true`
+      );
+    }
+    if (!result.text || typeof result.text !== "string") {
+      throw new Error(
+        `${c.label}: failure must include human-readable text`
+      );
+    }
+    console.log(
+      `  ✓ ${c.label.padEnd(45)} -> success=false, text="${result.text.slice(0, 50)}…"`
+    );
+  }
+}
+
 console.log("\n→ keepergatePlugin.init() — registration paths");
 
 if (!keepergatePlugin.init) {
