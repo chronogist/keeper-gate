@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx --env-file=../../.env src/index.ts",
     "start:multi": "tsx --env-file=../../.env src/multi-step.ts",
+    "start:create": "tsx --env-file=../../.env src/create-workflow.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
