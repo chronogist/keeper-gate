@@ -38,6 +38,29 @@ export interface Workflow {
   updatedAt?: string;
 }
 
+export interface CreateWorkflowInput {
+  name: string;
+  description?: string;
+  projectId?: string;
+  /**
+   * KeeperHub's `POST /workflows/create` requires nodes/edges (despite the
+   * docs implying they're optional). We default to a minimal Manual trigger
+   * node + empty edges if the caller doesn't supply them.
+   */
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[];
+}
+
+export interface UpdateWorkflowInput {
+  name?: string;
+  description?: string;
+  projectId?: string;
+  tagId?: string;
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[];
+  visibility?: string;
+}
+
 export interface ExecuteResponse {
   executionId: string;
   runId?: string;

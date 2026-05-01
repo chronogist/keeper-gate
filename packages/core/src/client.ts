@@ -1,8 +1,10 @@
 import type {
+  CreateWorkflowInput,
   ExecuteResponse,
   ExecutionLogsResponse,
   ExecutionResult,
   ExecutionStatusResponse,
+  UpdateWorkflowInput,
   Workflow,
 } from "./types.js";
 
@@ -92,6 +94,81 @@ export class KeeperHubClient {
 
   getWorkflow(workflowId: string): Promise<Workflow> {
     return this.request<Workflow>(`/workflows/${workflowId}`);
+  }
+
+  /**
+   * Create a new workflow. KeeperHub's create endpoint requires nodes and
+   * edges; if the caller doesn't supply them we send a default Manual trigger
+   * node and empty edges so the call still succeeds. Callers that want a
+   * real workflow shape can either pass nodes/edges here or follow up with
+   * updateWorkflow.
+   */
+  createWorkflow(input: CreateWorkflowInput): Promise<Workflow> {
+    const body = {
+      name: input.name,
+      description: input.description ?? "",
+      projectId: input.projectId,
+      nodes: input.nodes ?? [
+        {
+          id: "trigger-1",
+          type: "trigger",
+          data: {
+            type: "trigger",
+            label: "",
+            description: "",
+            status: "idle",
+            config: { triggerType: "Manual" },
+          },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: input.edges ?? [],
+    };
+    return this.request<Workflow>("/workflows/create", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Update an existing workflow. Pass only the fields you want to change.
+   * Sending a full nodes/edges array replaces the current ones in their
+   * entirety -- this endpoint is not a partial-graph patch.
+   */
+  updateWorkflow(
+    workflowId: string,
+    input: UpdateWorkflowInput
+  ): Promise<Workflow> {
+    return this.request<Workflow>(`/workflows/${workflowId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  }
+
+  /**
+   * Delete a workflow. KeeperHub returns 409 if the workflow has execution
+   * history; pass `force: true` to cascade-delete runs and logs along with
+   * it. Returns the response body (shape varies; we keep it `unknown`).
+   */
+  deleteWorkflow(
+    workflowId: string,
+    opts: { force?: boolean } = {}
+  ): Promise<unknown> {
+    const qs = opts.force ? "?force=true" : "";
+    return this.request<unknown>(`/workflows/${workflowId}${qs}`, {
+      method: "DELETE",
+    });
+  }
+
+  /**
+   * Clone an existing workflow into a new one. Returns the new workflow.
+   * Useful for the "find a similar workflow, duplicate, edit" pattern --
+   * lighter cognitive load for an LLM than building from scratch.
+   */
+  duplicateWorkflow(workflowId: string): Promise<Workflow> {
+    return this.request<Workflow>(`/workflows/${workflowId}/duplicate`, {
+      method: "POST",
+    });
   }
 
   executeWorkflow(
