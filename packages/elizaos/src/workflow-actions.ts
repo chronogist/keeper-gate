@@ -10,7 +10,7 @@ import {
 import { extractArgs } from "./extract.js";
 
 const RUN_TEMPLATE = `The user wants to run a KeeperHub workflow. Extract:
-<workflowId>the workflow id, e.g. wf_abc123 (look at recent messages for a list_workflows result if needed)</workflowId>
+<workflowId>the workflow id to run (REQUIRED - look for ids like "wf_abc", "omfyxouhxbls1qmtimg7c", or extract from workflow name in recent messages)</workflowId>
 <input>JSON object of trigger inputs, or {} if none. Example: {"address":"0x..."}</input>`;
 
 const CREATE_TEMPLATE = `The user wants to create a new KeeperHub workflow. You must extract:
@@ -27,18 +27,18 @@ Extract:
 <description>optional one-line description of what the workflow does</description>`;
 
 const UPDATE_TEMPLATE = `The user wants to update a KeeperHub workflow. Extract only the fields that should change:
-<workflowId>the workflow id to update</workflowId>
+<workflowId>the workflow id to update (REQUIRED)</workflowId>
 <name>new name, or empty to keep current</name>
 <description>new description, or empty to keep current</description>
 <nodesJson>JSON-encoded array of WorkflowNode objects to replace the current nodes, or empty to keep current</nodesJson>
 <edgesJson>JSON-encoded array of WorkflowEdge objects, or empty to keep current</edgesJson>`;
 
 const DELETE_TEMPLATE = `The user wants to delete a KeeperHub workflow. Extract:
-<workflowId>the workflow id to delete</workflowId>
+<workflowId>the workflow id to delete (REQUIRED - look for ids like "wf_abc", "omfyxouhxbls1qmtimg7c", or extract from workflow name/description)</workflowId>
 <force>"true" to cascade-delete execution history, "false" or empty otherwise</force>`;
 
 const DUPLICATE_TEMPLATE = `The user wants to duplicate a KeeperHub workflow. Extract:
-<workflowId>the workflow id to clone</workflowId>`;
+<workflowId>the workflow id to clone (REQUIRED)</workflowId>`;
 
 const HAS_INTENT = (m: Memory, words: string[]): boolean => {
   const text = (m.content?.text ?? "").toLowerCase();
@@ -131,16 +131,52 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       callback,
       responses
     ): Promise<ActionResult> => {
-      const args = await extractArgs<{
+      let args = await extractArgs<{
         workflowId: string;
         input?: string;
       }>(runtime, message, state, RUN_TEMPLATE, responses);
-      if (!args?.workflowId) {
+
+      // Fallback: if extraction failed, try to extract workflowId from the message text
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        const userText = message.content?.text ?? "";
+        logger.warn(
+          {
+            args,
+            messageText: userText.slice(0, 150),
+            fallbackAttempt: true,
+          },
+          "[keepergate] run workflow: LLM extraction returned empty, trying fallback"
+        );
+
+        // Try to find workflow ID patterns
+        const idMatch = userText.match(
+          /(?:run|trigger|execute)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
+        ) ||
+          userText.match(/\b([a-zA-Z0-9_]{10,})\b/);
+
+        if (idMatch && idMatch[1]) {
+          args = {
+            workflowId: idMatch[1].trim(),
+            input: args?.input,
+          };
+          logger.info(
+            { extractedId: args.workflowId },
+            "[keepergate] fallback extraction succeeded"
+          );
+        }
+      }
+
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        logger.error(
+          { args, messageText: message.content?.text?.slice(0, 150) },
+          "[keepergate] run workflow: failed to extract workflowId from message"
+        );
         return {
           success: false,
-          text: "No workflowId found in the message.",
+          text: "No workflowId found in the message. Please specify the workflow ID to run (e.g., 'Run workflow omfyxouhxbls1qmtimg7c').",
         };
       }
+
       let triggerInput: Record<string, unknown> = {};
       if (args.input) {
         try {
@@ -154,7 +190,7 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       }
       try {
         const { executionId } = await client.executeWorkflow(
-          args.workflowId,
+          args.workflowId.trim(),
           triggerInput
         );
         const result = await client.pollUntilDone(executionId);
@@ -313,19 +349,57 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       callback,
       responses
     ): Promise<ActionResult> => {
-      const args = await extractArgs<{
+      let args = await extractArgs<{
         workflowId: string;
         name?: string;
         description?: string;
         nodesJson?: string;
         edgesJson?: string;
       }>(runtime, message, state, UPDATE_TEMPLATE, responses);
-      if (!args?.workflowId) {
-        return { success: false, text: "No workflowId found in the message." };
+
+      // Fallback: if extraction failed, try to extract workflowId
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        const userText = message.content?.text ?? "";
+        logger.warn(
+          {
+            args,
+            messageText: userText.slice(0, 150),
+            fallbackAttempt: true,
+          },
+          "[keepergate] update workflow: LLM extraction returned empty, trying fallback"
+        );
+
+        const idMatch = userText.match(
+          /(?:update|edit|rename|modify)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
+        ) ||
+          userText.match(/\b([a-zA-Z0-9_]{10,})\b/);
+
+        if (idMatch && idMatch[1]) {
+          args = {
+            ...args,
+            workflowId: idMatch[1].trim(),
+          };
+          logger.info(
+            { extractedId: args.workflowId },
+            "[keepergate] fallback extraction succeeded"
+          );
+        }
       }
+
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        logger.error(
+          { args, messageText: message.content?.text?.slice(0, 150) },
+          "[keepergate] update workflow: failed to extract workflowId"
+        );
+        return {
+          success: false,
+          text: "No workflowId found in the message. Please specify the workflow ID to update.",
+        };
+      }
+
       const patch: Parameters<typeof client.updateWorkflow>[1] = {};
-      if (args.name) patch.name = args.name;
-      if (args.description) patch.description = args.description;
+      if (args.name) patch.name = args.name.trim();
+      if (args.description) patch.description = args.description.trim();
       if (args.nodesJson) {
         try {
           patch.nodes = JSON.parse(args.nodesJson);
@@ -341,7 +415,7 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
         }
       }
       try {
-        const wf = await client.updateWorkflow(args.workflowId, patch);
+        const wf = await client.updateWorkflow(args.workflowId.trim(), patch);
         const text = `Updated workflow ${wf.id} ("${wf.name}").`;
         await callback?.({ text, actions: ["KEEPERGATE_UPDATE_WORKFLOW"] });
         return {
@@ -351,6 +425,7 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
           data: { workflow: wf },
         };
       } catch (err) {
+        logger.error({ err }, "[keepergate] updateWorkflow failed");
         return {
           success: false,
           text: `Update failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -390,18 +465,60 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       callback,
       responses
     ): Promise<ActionResult> => {
-      const args = await extractArgs<{ workflowId: string; force?: string }>(
+      let args = await extractArgs<{ workflowId: string; force?: string }>(
         runtime,
         message,
         state,
         DELETE_TEMPLATE,
         responses
       );
-      if (!args?.workflowId) {
-        return { success: false, text: "No workflowId found in the message." };
+
+      // Fallback: if extraction failed, try to extract workflowId from the message text
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        const userText = message.content?.text ?? "";
+        logger.warn(
+          {
+            args,
+            messageText: userText.slice(0, 150),
+            fallbackAttempt: true,
+          },
+          "[keepergate] delete workflow: LLM extraction returned empty, trying fallback"
+        );
+
+        // Try to find workflow ID patterns:
+        // 1. Explicit IDs like "wf_abc", "omfyxouhxbls1qmtimg7c", etc
+        // 2. After "delete" or "remove" keywords
+        const idMatch = userText.match(
+          /(?:delete|remove|delete workflow|remove workflow)\s+(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
+        ) ||
+          userText.match(/\b([a-zA-Z0-9_]{10,})\b/) || // long alphanumeric strings (likely IDs)
+          userText.match(/(?:workflow|id)?\s+["']?([a-zA-Z0-9_-]+)["']?\s+(?:titled|named|called|")/i);
+
+        if (idMatch && idMatch[1]) {
+          args = {
+            workflowId: idMatch[1].trim(),
+            force: args?.force,
+          };
+          logger.info(
+            { extractedId: args.workflowId },
+            "[keepergate] fallback extraction succeeded"
+          );
+        }
       }
+
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        logger.error(
+          { args, messageText: message.content?.text?.slice(0, 150) },
+          "[keepergate] delete workflow: failed to extract workflowId from message"
+        );
+        return {
+          success: false,
+          text: "No workflowId found in the message. Please specify the workflow ID to delete (e.g., 'Delete workflow omfyxouhxbls1qmtimg7c').",
+        };
+      }
+
       try {
-        await client.deleteWorkflow(args.workflowId, {
+        await client.deleteWorkflow(args.workflowId.trim(), {
           force: String(args.force).toLowerCase() === "true",
         });
         const text = `Deleted workflow ${args.workflowId}.`;
@@ -412,6 +529,7 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
           values: { deleted: args.workflowId },
         };
       } catch (err) {
+        logger.error({ err }, "[keepergate] deleteWorkflow failed");
         return {
           success: false,
           text: `Delete failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -448,18 +566,55 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
       callback,
       responses
     ): Promise<ActionResult> => {
-      const args = await extractArgs<{ workflowId: string }>(
+      let args = await extractArgs<{ workflowId: string }>(
         runtime,
         message,
         state,
         DUPLICATE_TEMPLATE,
         responses
       );
-      if (!args?.workflowId) {
-        return { success: false, text: "No workflowId found in the message." };
+
+      // Fallback: if extraction failed, try to extract workflowId
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        const userText = message.content?.text ?? "";
+        logger.warn(
+          {
+            args,
+            messageText: userText.slice(0, 150),
+            fallbackAttempt: true,
+          },
+          "[keepergate] duplicate workflow: LLM extraction returned empty, trying fallback"
+        );
+
+        const idMatch = userText.match(
+          /(?:duplicate|clone|copy)\s+(?:workflow\s+)?(?:["'])?([a-zA-Z0-9_-]+)(?:["'])?/i
+        ) ||
+          userText.match(/\b([a-zA-Z0-9_]{10,})\b/);
+
+        if (idMatch && idMatch[1]) {
+          args = {
+            workflowId: idMatch[1].trim(),
+          };
+          logger.info(
+            { extractedId: args.workflowId },
+            "[keepergate] fallback extraction succeeded"
+          );
+        }
       }
+
+      if (!args?.workflowId || args.workflowId.trim() === "") {
+        logger.error(
+          { args, messageText: message.content?.text?.slice(0, 150) },
+          "[keepergate] duplicate workflow: failed to extract workflowId"
+        );
+        return {
+          success: false,
+          text: "No workflowId found in the message. Please specify the workflow ID to duplicate.",
+        };
+      }
+
       try {
-        const wf = await client.duplicateWorkflow(args.workflowId);
+        const wf = await client.duplicateWorkflow(args.workflowId.trim());
         const text = `Duplicated workflow ${args.workflowId} as ${wf.id} ("${wf.name}").`;
         await callback?.({ text, actions: ["KEEPERGATE_DUPLICATE_WORKFLOW"] });
         return {
@@ -469,6 +624,7 @@ export function buildWorkflowActions(client: KeeperHubClient): Action[] {
           data: { workflow: wf },
         };
       } catch (err) {
+        logger.error({ err }, "[keepergate] duplicateWorkflow failed");
         return {
           success: false,
           text: `Duplicate failed: ${err instanceof Error ? err.message : String(err)}`,
