@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { KeeperHubClient, WorkflowTool } from "../src/index.js";
+import { KeeperHubClient, KeeperHubError, WorkflowTool } from "../src/index.js";
 
 async function main() {
   const apiKey = process.env.KEEPERHUB_API_KEY;
@@ -57,6 +57,34 @@ async function main() {
       `    - [${log.status}] ${log.nodeName ?? log.nodeId} (${log.duration ?? "?"}ms)`
     );
   }
+  // --- rawRequest error path ----------------------------------------------
+  //
+  // The KeeperHubClient.rawRequest escape hatch is what DirectExecutor (and
+  // any future helpers) use to hit endpoints not yet wrapped. If the API
+  // returns an error, the wrapper must throw a typed KeeperHubError with
+  // the right .status -- callers downstream rely on instanceof checks.
+
+  console.log("\n→ KeeperHubClient.rawRequest (non-existent endpoint -> typed error)");
+  try {
+    await client.rawRequest(
+      "/this-endpoint-definitely-does-not-exist-zzz"
+    );
+    throw new Error("expected rawRequest to throw on a 404 endpoint");
+  } catch (err) {
+    if (err instanceof KeeperHubError) {
+      if (![404, 405].includes(err.status)) {
+        throw new Error(
+          `expected 404/405, got status=${err.status}: ${err.message}`
+        );
+      }
+      console.log(
+        `  ✓ KeeperHubError surfaced (status ${err.status}): ${err.message.slice(0, 80)}`
+      );
+    } else {
+      throw err;
+    }
+  }
+
   console.log("\n✅ smoke test passed");
 }
 

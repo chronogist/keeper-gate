@@ -192,6 +192,7 @@ keeper-gate/
 | Tools callable through LangChain `.invoke()` | `pnpm --filter @keepergate/langchain smoke` |
 | `KeeperGateToolkit.include` filter restricts the tool surface | same smoke |
 | `isReadResult` discriminator distinguishes read vs. write returns | `pnpm --filter @keepergate/core test:units` |
+| `KeeperHubClient.rawRequest` surfaces HTTP errors as typed `KeeperHubError` | `pnpm --filter @keepergate/core smoke` |
 | Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 

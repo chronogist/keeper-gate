@@ -75,11 +75,6 @@ These can be added in the existing `pnpm test` flow today.
 - **Where:** new `packages/core/test/poll-timeout.test.ts`.
 - **Estimated effort:** 10 min.
 
-### B5. `KeeperHubClient.rawRequest` error path
-- **What:** verify that `rawRequest` on a non-existent endpoint surfaces a typed `KeeperHubError` with the right `.status`.
-- **Where:** `packages/core/test/smoke.ts` (one extra block).
-- **Estimated effort:** 5 min.
-
 ### B6. Eliza handler `responses` parameter (action chaining)
 - **What:** invoke a handler with a non-empty `responses` array and assert `composeState` is called with the providers from those responses.
 - **Why it matters:** Eliza v1's action-chaining contract.
@@ -128,7 +123,7 @@ These code paths are exercised — what's missing is variation.
 
 1. ~~**B1** (toolkit include filter)~~ — done.
 2. ~~**B9** (isReadResult discriminator)~~ — done.
-3. **B5** (rawRequest error path) — 5 min, while we're in the file.
+3. ~~**B5** (rawRequest error path)~~ — done.
 4. **B2** (cross-chain smoke) — proves a README claim.
 5. **B7** (template-refs pathological) — easy to add now.
 6. **B8** (parseKeyValueXml malformed) — same.
