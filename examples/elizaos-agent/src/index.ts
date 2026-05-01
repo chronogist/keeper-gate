@@ -4,6 +4,10 @@ import { createServer } from "http";
 import * as path from "path";
 import "dotenv/config";
 
+// KeeperGate Integration: Import KeeperGate plugin actions
+import { buildDirectActions, buildWorkflowActions } from "@keepergate/elizaos";
+import { KeeperHubClient, DirectExecutor } from "@keepergate/core";
+
 const app: Express = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
@@ -40,7 +44,77 @@ function log(message: string, type: "info" | "log" | "tool" | "response" = "log"
   });
 }
 
-// Simple message generator using OpenRouter
+// KeeperGate Integration: Initialize KeeperGate client and actions
+let keepergateClient: KeeperHubClient | null = null;
+let keepergateActions: Array<{ name: string; handler: (params: unknown) => Promise<string> }> = [];
+
+async function initializeKeeperGate(): Promise<void> {
+  const keeperhubApiKey = process.env.KEEPERHUB_API_KEY;
+  if (!keeperhubApiKey) {
+    log("⚠️  KEEPERHUB_API_KEY not set. KeeperGate features will be unavailable.", "info");
+    return;
+  }
+
+  log("Initializing KeeperGate integration...", "info");
+
+  try {
+    // KeeperGate Integration: Create KeeperHub client
+    keepergateClient = new KeeperHubClient({
+      apiKey: keeperhubApiKey,
+    });
+
+    // KeeperGate Integration: Create executor and build actions
+    const executor = new DirectExecutor(keepergateClient);
+    const directActions = buildDirectActions(executor);
+    const workflowActions = buildWorkflowActions(keepergateClient);
+
+    // KeeperGate Integration: Store available KeeperGate actions for later use
+    keepergateActions = [...directActions, ...workflowActions].map((action) => ({
+      name: action.name,
+      handler: async (params: unknown) => {
+        try {
+          const result = await action.handler(
+            {} as any,
+            { text: JSON.stringify(params) } as any
+          );
+          return typeof result === "string" ? result : JSON.stringify(result);
+        } catch (error) {
+          return `Error executing ${action.name}: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      },
+    }));
+
+    log(`✅ KeeperGate initialized with ${keepergateActions.length} actions available`, "info");
+    log(`Available actions: ${keepergateActions.map((a) => a.name).join(", ")}`, "info");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`⚠️  Failed to initialize KeeperGate: ${errorMessage}`, "info");
+  }
+}
+
+// KeeperGate Integration: Determine if a message should use KeeperGate actions
+function shouldUseKeeperGateAction(userMessage: string): boolean {
+  // KeeperGate Integration: Check for keywords that suggest KeeperGate action usage
+  const keepergateKeywords = [
+    "transfer",
+    "send",
+    "execute",
+    "workflow",
+    "contract",
+    "call",
+    "check",
+    "conditional",
+    "create workflow",
+    "delete workflow",
+    "update workflow",
+    "run workflow",
+  ];
+
+  const lowerMessage = userMessage.toLowerCase();
+  return keepergateKeywords.some((keyword) => lowerMessage.includes(keyword));
+}
+
+// KeeperGate Integration: Process message with potential KeeperGate actions
 async function generateResponse(userMessage: string): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -51,9 +125,74 @@ async function generateResponse(userMessage: string): Promise<string> {
 
   const model = process.env.ELIZAOS_MODEL || "openai/gpt-oss-20b:free";
 
-  log(`Calling ${model}`, "tool");
+  log(`Processing message with ElizaOS (${model})`, "tool");
 
   try {
+    // KeeperGate Integration: Check if this message needs KeeperGate actions
+    if (shouldUseKeeperGateAction(userMessage) && keepergateActions.length > 0) {
+      log(`🔧 Message matches KeeperGate keywords, considering actions...`, "tool");
+
+      // KeeperGate Integration: Use LLM to decide which action to take
+      const actionSelectionResponse = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://github.com/chronogist/keeper-gate",
+            "X-Title": "ElizaOS Agent with KeeperGate",
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: "system",
+                content: `You are Eliza, an AI assistant with blockchain capabilities via KeeperGate. 
+Available KeeperGate actions: ${keepergateActions.map((a) => a.name).join(", ")}
+
+When a user asks about transfers, contract calls, workflow execution, or conditional execution, 
+respond with a JSON object like: {"shouldExecute": true, "action": "ACTION_NAME", "params": {...}}
+Otherwise, respond with: {"shouldExecute": false}
+
+Always prioritize safety and clarity. Ask for confirmation for significant transactions.`,
+              },
+              {
+                role: "user",
+                content: userMessage,
+              },
+            ],
+            max_tokens: 500,
+            temperature: 0.7,
+          }),
+        }
+      );
+
+      if (actionSelectionResponse.ok) {
+        const actionData = (await actionSelectionResponse.json()) as {
+          choices: Array<{ message: { content: string } }>;
+        };
+        const responseText = actionData.choices[0]?.message?.content || "";
+
+        try {
+          const parsed = JSON.parse(responseText);
+          if (parsed.shouldExecute && parsed.action) {
+            log(`⚡ Executing KeeperGate action: ${parsed.action}`, "tool");
+            const action = keepergateActions.find((a) => a.name === parsed.action);
+            if (action) {
+              const actionResult = await action.handler(parsed.params);
+              log(`✅ KeeperGate action completed`, "response");
+              return `Action executed: ${action.name}\n\nResult: ${actionResult}`;
+            }
+          }
+        } catch {
+          // KeeperGate Integration: If not JSON or no action needed, fall through to text response
+          log("Could not parse action response, generating text response instead", "info");
+        }
+      }
+    }
+
+    // KeeperGate Integration: Generate regular text response
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -90,7 +229,7 @@ async function generateResponse(userMessage: string): Promise<string> {
     };
 
     const content = data.choices[0]?.message?.content || "I didn't understand that.";
-    log(`Received response from ${model}`, "response");
+    log(`Text response generated`, "response");
     return content;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -157,9 +296,12 @@ app.get("/health", (_req: Request, res: Response) => {
 });
 
 // Start server
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   log(`🚀 ElizaOS Agent running at http://localhost:${PORT}`, "info");
   log(`Open http://localhost:${PORT} in your browser to chat`, "info");
+  
+  // KeeperGate Integration: Initialize KeeperGate on startup
+  await initializeKeeperGate();
 });
 
 // Graceful shutdown

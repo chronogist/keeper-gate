@@ -1,11 +1,15 @@
 {
   "name": "Eliza",
   "username": "elizaos",
-  "plugins": [],
+  "plugins": [
+    "@keepergate/elizaos"
+  ],
   "clients": [],
   "modelProvider": "openai",
   "settings": {
-    "secrets": {},
+    "secrets": {
+      "KEEPERHUB_API_KEY": ""
+    },
     "voice": {
       "model": "en_US-neural2-c"
     }
