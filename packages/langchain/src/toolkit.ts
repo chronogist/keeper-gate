@@ -21,7 +21,11 @@ export type ToolName =
   | "checkAndExecute"
   | "getExecutionStatus"
   | "listWorkflows"
-  | "runWorkflow";
+  | "runWorkflow"
+  | "createWorkflow"
+  | "updateWorkflow"
+  | "deleteWorkflow"
+  | "duplicateWorkflow";
 
 const ALL_TOOLS: ToolName[] = [
   "transfer",
@@ -30,6 +34,10 @@ const ALL_TOOLS: ToolName[] = [
   "getExecutionStatus",
   "listWorkflows",
   "runWorkflow",
+  "createWorkflow",
+  "updateWorkflow",
+  "deleteWorkflow",
+  "duplicateWorkflow",
 ];
 
 /**
@@ -69,6 +77,10 @@ export class KeeperGateToolkit {
       ["getExecutionStatus", direct[3]],
       ["listWorkflows", workflow[0]],
       ["runWorkflow", workflow[1]],
+      ["createWorkflow", workflow[2]],
+      ["updateWorkflow", workflow[3]],
+      ["deleteWorkflow", workflow[4]],
+      ["duplicateWorkflow", workflow[5]],
     ]);
     return this.include.flatMap((n) => {
       const t = byName.get(n);

@@ -2,6 +2,53 @@ import { tool } from "@langchain/core/tools";
 import type { KeeperHubClient } from "@keepergate/core";
 import { z } from "zod";
 
+const createSchema = z.object({
+  name: z.string().describe("Human-readable name for the workflow."),
+  description: z
+    .string()
+    .nullish()
+    .describe("Optional one-line description shown in the workflow list."),
+});
+
+const updateSchema = z.object({
+  workflowId: z
+    .string()
+    .describe(
+      "Id of the workflow to update, e.g. 'wf_abc...'. Use keepergate_list_workflows to discover ids."
+    ),
+  name: z.string().nullish().describe("New name. Omit to keep current name."),
+  description: z
+    .string()
+    .nullish()
+    .describe("New description. Omit to keep current description."),
+  nodesJson: z
+    .string()
+    .nullish()
+    .describe(
+      "JSON-encoded array of WorkflowNode objects to replace the current nodes. Omit to leave nodes unchanged. Sending this replaces the entire graph -- partial graph edits aren't supported."
+    ),
+  edgesJson: z
+    .string()
+    .nullish()
+    .describe(
+      "JSON-encoded array of WorkflowEdge objects. Pair with nodesJson when restructuring the graph."
+    ),
+});
+
+const deleteSchema = z.object({
+  workflowId: z.string().describe("Id of the workflow to delete."),
+  force: z
+    .boolean()
+    .nullish()
+    .describe(
+      "Set true to cascade-delete execution history; otherwise the API returns 409 when the workflow has runs."
+    ),
+});
+
+const duplicateSchema = z.object({
+  workflowId: z.string().describe("Id of the workflow to clone."),
+});
+
 const listSchema = z.object({
   projectId: z
     .string()
@@ -99,5 +146,79 @@ export function buildWorkflowTools(client: KeeperHubClient) {
     }
   );
 
-  return [listTool, runTool] as const;
+  const createTool = tool(
+    async (input) => {
+      const wf = await client.createWorkflow({
+        name: input.name,
+        description: input.description ?? undefined,
+      });
+      return JSON.stringify({ id: wf.id, name: wf.name });
+    },
+    {
+      name: "keepergate_create_workflow",
+      description:
+        "Create a new KeeperHub workflow with a name and optional description. Returns the new workflow's id. The new workflow starts with a default Manual trigger -- use keepergate_update_workflow to add action nodes and connections.",
+      schema: createSchema,
+    }
+  );
+
+  const updateTool = tool(
+    async (input) => {
+      const patch: Parameters<typeof client.updateWorkflow>[1] = {};
+      if (input.name) patch.name = input.name;
+      if (input.description) patch.description = input.description;
+      if (input.nodesJson) {
+        try {
+          patch.nodes = JSON.parse(input.nodesJson);
+        } catch {
+          return JSON.stringify({ error: "nodesJson is not valid JSON" });
+        }
+      }
+      if (input.edgesJson) {
+        try {
+          patch.edges = JSON.parse(input.edgesJson);
+        } catch {
+          return JSON.stringify({ error: "edgesJson is not valid JSON" });
+        }
+      }
+      const wf = await client.updateWorkflow(input.workflowId, patch);
+      return JSON.stringify({ id: wf.id, name: wf.name });
+    },
+    {
+      name: "keepergate_update_workflow",
+      description:
+        "Update an existing KeeperHub workflow's name, description, nodes, or edges. Pass only the fields to change. Sending nodesJson/edgesJson replaces the entire current graph -- always pair them when restructuring.",
+      schema: updateSchema,
+    }
+  );
+
+  const deleteTool = tool(
+    async (input) => {
+      await client.deleteWorkflow(input.workflowId, {
+        force: input.force ?? false,
+      });
+      return JSON.stringify({ deleted: input.workflowId });
+    },
+    {
+      name: "keepergate_delete_workflow",
+      description:
+        "Delete a KeeperHub workflow by id. Without force=true, returns an error if the workflow has execution history. Use force=true to cascade-delete runs and logs.",
+      schema: deleteSchema,
+    }
+  );
+
+  const duplicateTool = tool(
+    async (input) => {
+      const wf = await client.duplicateWorkflow(input.workflowId);
+      return JSON.stringify({ id: wf.id, name: wf.name });
+    },
+    {
+      name: "keepergate_duplicate_workflow",
+      description:
+        "Clone an existing workflow into a new one. Useful when you want to start from a working workflow and make small edits via keepergate_update_workflow rather than building from scratch.",
+      schema: duplicateSchema,
+    }
+  );
+
+  return [listTool, runTool, createTool, updateTool, deleteTool, duplicateTool] as const;
 }

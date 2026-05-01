@@ -184,4 +184,49 @@ console.log("\n→ KeeperGateToolkit.include filter");
   console.log(`  ✓ include: []                -> 0 tools (read-restricted agent)`);
 }
 
+// --- Workflow CRUD: create -> duplicate -> update -> delete ---------------
+//
+// Verifies all four CRUD tools end-to-end through the LangChain interface.
+// Cleans up after itself so the user's KeeperHub account stays tidy.
+
+console.log("\n→ Workflow CRUD round-trip (create / duplicate / update / delete)");
+{
+  const created = JSON.parse(
+    (await byName("keepergate_create_workflow").invoke({
+      name: "keepergate-smoke-temp",
+      description: "ephemeral workflow created by langchain smoke",
+    })) as string
+  ) as { id: string; name: string };
+  console.log(`  ✓ create     -> ${created.id}`);
+
+  const dup = JSON.parse(
+    (await byName("keepergate_duplicate_workflow").invoke({
+      workflowId: created.id,
+    })) as string
+  ) as { id: string; name: string };
+  console.log(`  ✓ duplicate  -> ${dup.id}  (${dup.name})`);
+
+  const upd = JSON.parse(
+    (await byName("keepergate_update_workflow").invoke({
+      workflowId: created.id,
+      description: "updated by smoke",
+    })) as string
+  ) as { id: string };
+  console.log(`  ✓ update     -> ${upd.id}`);
+
+  const delA = JSON.parse(
+    (await byName("keepergate_delete_workflow").invoke({
+      workflowId: created.id,
+      force: true,
+    })) as string
+  ) as { deleted: string };
+  const delB = JSON.parse(
+    (await byName("keepergate_delete_workflow").invoke({
+      workflowId: dup.id,
+      force: true,
+    })) as string
+  ) as { deleted: string };
+  console.log(`  ✓ delete     -> ${delA.deleted}, ${delB.deleted}`);
+}
+
 console.log("\n✅ langchain adapter smoke passed");
