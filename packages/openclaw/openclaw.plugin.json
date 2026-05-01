@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.openclaw.ai/plugin-manifest.schema.json",
+  "id": "keepergate",
+  "name": "KeeperGate",
+  "description": "Reliable on-chain execution via KeeperHub: transfers, contract calls, conditional execution, and pre-built workflow triggers.",
+  "version": "0.0.1",
+  "kind": "tool",
+  "entry": "src/index.ts",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["apiKey"],
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "description": "KeeperHub organisation API key (kh_...). Create one at app.keeperhub.com → Settings → API Keys."
+      },
+      "baseUrl": {
+        "type": "string",
+        "description": "Override the KeeperHub API base URL. Defaults to https://app.keeperhub.com/api."
+      }
+    }
+  }
+}
