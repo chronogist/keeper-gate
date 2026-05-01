@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ElizaOS Agent</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="chat-wrapper">
+        <!-- Chat Area -->
+        <div class="chat-area">
+          <div class="chat-header">
+            <h1>🤖 ElizaOS Agent</h1>
+            <div class="status">
+              <span id="status-indicator" class="status-indicator"></span>
+              <span id="status-text">Connecting...</span>
+            </div>
+          </div>
+
+          <div class="chat-messages" id="chatMessages"></div>
+
+          <div class="input-area">
+            <input
+              type="text"
+              id="messageInput"
+              placeholder="Type your message and press Enter..."
+              class="message-input"
+            />
+            <button id="sendBtn" class="send-button">Send</button>
+          </div>
+        </div>
+
+        <!-- Logs Area -->
+        <div class="logs-area">
+          <div class="logs-header">
+            <h2>📋 Terminal Logs</h2>
+            <button id="clearLogsBtn" class="clear-btn">Clear</button>
+          </div>
+          <div class="logs-content" id="logsContent">
+            <div class="log-entry info">Waiting for connection...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="client.js"></script>
+  </body>
+</html>
