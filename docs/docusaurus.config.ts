@@ -8,7 +8,7 @@ const config: Config = {
   favicon: "img/favicon.ico",
 
   url: "https://chronogist.github.io",
-  baseUrl: "/keeper-gate/",
+  baseUrl: "/",
 
   organizationName: "chronogist",
   projectName: "keeper-gate",
