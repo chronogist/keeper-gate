@@ -2,6 +2,8 @@
 
 > The universal adapter that drops [KeeperHub](https://keeperhub.com)'s on-chain execution layer into any agent framework — in 3 lines.
 
+**Documentation:** [shimmering-clafoutis-6ce2f1.netlify.app](https://shimmering-clafoutis-6ce2f1.netlify.app)
+
 **LangChain:**
 
 ```ts
