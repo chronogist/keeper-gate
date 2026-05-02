@@ -92,18 +92,15 @@ cp .env.example .env
 ### Run the live LLM agent demo
 
 ```bash
-pnpm --filter langchain-demo start
+pnpm --filter langchain-agent start
 ```
 
-Reads vitalik.eth's USDC balance through a real LLM (gpt-oss-20b on OpenRouter) picking our `keepergate_call_contract` tool autonomously. Output looks like:
+Starts an interactive CLI agent powered by gpt-oss-20b. Ask it anything about your KeeperHub workflows or on-chain operations and it picks the right tool automatically.
 
-```
-[user]      What is the USDC balance of vitalik.eth on Ethereum?
-[ai → tool] keepergate_call_contract({"network":"ethereum","contractAddress":"0xA0b...","functionName":"balanceOf",...})
-[tool ←]    {"kind":"read","result":"120133626066"}
-[ai]        The USDC balance of vitalik.eth on Ethereum mainnet is 120,133.626066 USDC.
+To run the web UI instead:
 
-✅ demo run complete
+```bash
+pnpm --filter langchain-agent web
 ```
 
 ### Run the smoke tests
@@ -205,7 +202,9 @@ keeper-gate/
 │   ├── elizaos/          # @keepergate/elizaos — ElizaOS plugin
 │   └── openclaw/         # @keepergate/openclaw — OpenClaw plugin
 └── examples/
-    └── langchain-demo/   # runnable LLM-driven agent demo
+    ├── langchain/        # LangChain agent (CLI + web UI)
+    ├── elizaos-agent/    # ElizaOS agent via character.json
+    └── openclaw/         # OpenClaw plugin config + setup guide
 ```
 
 ## Tech stack
@@ -235,12 +234,12 @@ keeper-gate/
 | Cross-chain reads (Ethereum + Base auto-ABI, Arbitrum via chain id 42161 + manual ABI) | `pnpm --filter @keepergate/core smoke:direct` |
 | Schema inference handles malformed templates (`{{@}}`, missing `@`, mixed garbage, deep nesting, non-string config values) | `pnpm --filter @keepergate/core test:units` |
 | ElizaOS handlers stay clean on malformed LLM responses (empty / plain text / no envelope / broken XML / missing fields) | `pnpm --filter @keepergate/elizaos smoke` |
-| Real LLM chains 2 tools (list_workflows → run_workflow) in one prompt | `pnpm --filter langchain-demo start:multi` |
+| Real LLM chains 2 tools (list_workflows → run_workflow) in one prompt | `pnpm --filter langchain-agent start` |
 | `pollUntilDone` honours `timeoutMs` and returns terminal status when reached | `pnpm --filter @keepergate/core test:units` |
 | ElizaOS action chaining: providers from prior `responses` are merged into `composeState` | `pnpm --filter @keepergate/elizaos smoke` |
 | OpenClaw plugin entry + tool factory + 2 live `execute()` round-trips | `pnpm --filter @keepergate/openclaw smoke` |
 | Workflow CRUD round-trip (create → duplicate → update → delete) live in all 3 adapters | `pnpm --filter @keepergate/{langchain,elizaos,openclaw} smoke` |
-| Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-demo start` |
+| Real LLM (gpt-oss-20b) picks tool, fills args, calls KeeperHub, reports answer | `pnpm --filter langchain-agent start` |
 | ElizaOS plugin instantiates with all 6 actions, shape-correct, `validate()` paths green | `pnpm --filter @keepergate/elizaos smoke` |
 
 ## Findings while building

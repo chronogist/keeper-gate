@@ -9,7 +9,7 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["apiKey"],
+    "required": [],
     "properties": {
       "apiKey": {
         "type": "string",

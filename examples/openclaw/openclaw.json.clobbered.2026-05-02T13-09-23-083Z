@@ -1,0 +1,47 @@
+{
+  "models": {
+    "mode": "replace",
+    "providers": {
+      "custom-localhost-8000": {
+        "baseUrl": "http://localhost:8000/v1",
+        "apiKey": "sk-0g-ded29caf8e044eaf8615b4a021fec611",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "qwen-2.5-7b-instruct",
+            "name": "QWEN ",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 131072,
+            "maxTokens": 65536
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "custom-localhost-8000/qwen-2.5-7b-instruct"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "keepergate": {
+        "apiKey": "kh_MKnQt8wrEay1_qxZcyCEBXbWPKtxSvMI",
+        "baseUrl": "https://app.keeperhub.com/api"
+      }
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "25ef24a023c67356a6a63376f288480401f7b537cbe29f90"
+    }
+  }
+}

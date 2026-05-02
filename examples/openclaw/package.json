@@ -1,0 +1,14 @@
+{
+  "name": "openclaw-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "OPENCLAW_CONFIG_PATH=./openclaw.json KEEPERHUB_API_KEY=kh_MKnQt8wrEay1_qxZcyCEBXbWPKtxSvMI openclaw gateway start",
+    "dashboard": "OPENCLAW_CONFIG_PATH=./openclaw.json openclaw dashboard",
+    "config": "OPENCLAW_CONFIG_PATH=./openclaw.json openclaw configure"
+  },
+  "dependencies": {
+    "@keepergate/openclaw": "workspace:*",
+    "openclaw": "latest"
+  }
+}

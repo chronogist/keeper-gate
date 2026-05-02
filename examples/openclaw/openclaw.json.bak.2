@@ -1,0 +1,39 @@
+{
+  "models": {
+    "mode": "replace",
+    "providers": {
+      "ollama-cloud": {
+        "baseUrl": "https://ollama.com/v1",
+        "apiKey": "be128719e70640a798702a45d1c3dc27.EnfvL3jyjB0lp9ekO-uouaGj",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "gpt-oss:20b",
+            "name": "gpt-oss:20b (Ollama Cloud)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 16000,
+            "maxTokens": 4096
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "ollama-cloud/gpt-oss:20b"
+      }
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "25ef24a023c67356a6a63376f288480401f7b537cbe29f90"
+    }
+  }
+}

@@ -82,7 +82,7 @@ export const keepergatePluginEntry = definePluginEntry({
             "Override the KeeperHub API base URL. Defaults to https://app.keeperhub.com/api.",
         },
       },
-      required: ["apiKey"],
+      required: [],
     },
   },
   register(api) {
