@@ -62,11 +62,8 @@ function prompt(question: string): Promise<string> {
   return new Promise((resolve) => rl.question(question, resolve));
 }
 
-console.log("\n🤖 KeeperGate LangChain Agent — type your message, or 'exit' to quit");
+console.log("\n🤖LangChain Agent — type your message, or 'exit' to quit");
 console.log("📊 Traces: https://smith.langchain.com\n");
-console.log("Available KeeperHub tools:");
-console.log("  • list / get / run / create / update / delete / duplicate workflows");
-console.log("  • check execution status\n");
 
 async function chat() {
   while (true) {

@@ -149,6 +149,49 @@ The `openclaw.json` in this directory configures the model provider and gateway 
 
 ---
 
+## Configuration best practices
+
+### API key management
+
+The plugin supports multiple ways to provide your KeeperHub API key (in order of precedence):
+
+1. **Plugin config** (`~/.openclaw/openclaw.json`):
+   ```jsonc
+   {
+     "plugins": {
+       "entries": {
+         "keepergate": {
+           "apiKey": "kh_your_key_here",
+           "baseUrl": "https://app.keeperhub.com/api"  // optional override
+         }
+       }
+     }
+   }
+   ```
+
+2. **Environment variable** (`KEEPERHUB_API_KEY`):
+   ```bash
+   export KEEPERHUB_API_KEY='kh_your_key_here'
+   openclaw gateway start
+   ```
+
+3. **Service environment file** (recommended for daemon/systemd):
+   ```bash
+   echo "export KEEPERHUB_API_KEY='kh_your_key_here'" >> ~/.openclaw/service-env/ai.openclaw.gateway.env
+   ```
+
+The plugin will check each source in order and use the first available key. If none is found, it will return a clear error message.
+
+### Dynamic configuration updates
+
+The plugin uses a lazy factory pattern: each tool invocation reads the current configuration. This means you can rotate your API key or change the base URL **without restarting the gateway**:
+
+1. Update `~/.openclaw/openclaw.json` with the new key or URL
+2. The next tool invocation will use the new configuration
+3. No gateway restart required
+
+---
+
 ## Available tools
 
 Once loaded, your agent has these tools automatically:
@@ -177,6 +220,8 @@ Once loaded, your agent has these tools automatically:
 
 ## Troubleshooting
 
+### Plugin installation and discovery
+
 **`plugins.entries.keepergate: Unrecognized keys: "apiKey", "baseUrl"`**
 
 OpenClaw rejects plugin-specific config keys before the plugin is installed. Install the plugin first (Step 2), then add config. Use env vars as an alternative — `KEEPERHUB_API_KEY` is always respected.
@@ -188,6 +233,52 @@ Add `"allow": ["keepergate"]` under `"plugins"` in `~/.openclaw/openclaw.json` a
 **`plugin load failed: keepergate: invalid config: apiKey: must have required property 'apiKey'`**
 
 Pass `KEEPERHUB_API_KEY=kh_...` as an env var when running the install command. The schema validator runs before your config is applied.
+
+### Plugin not exposing tools to agents
+
+**Tools aren't appearing in agent's available tools list**
+
+This is likely caused by an incorrect manifest entry point. Verify:
+
+1. The plugin was built: `pnpm --filter @keepergate/openclaw build` (should create `packages/openclaw/dist/index.js`)
+2. The plugin manifest (`packages/openclaw/openclaw.plugin.json`) has the correct entry:
+   ```json
+   {
+     "entry": "dist/index.js"
+   }
+   ```
+   ⚠️ **Common mistake**: Pointing to `src/index.ts` (TypeScript source) instead of `dist/index.js` (compiled JavaScript). OpenClaw loads plugins from compiled output, not source.
+
+3. Reinstall the plugin after building:
+   ```bash
+   cd packages/openclaw
+   npm pack
+   KEEPERHUB_API_KEY=kh_your_key openclaw plugins install --force ./keepergate-openclaw-*.tgz
+   openclaw gateway stop && openclaw gateway start
+   ```
+
+**Plugin loads but tools still don't appear**
+
+1. Ensure the gateway's `KEEPERHUB_API_KEY` environment variable is set:
+   ```bash
+   echo "export KEEPERHUB_API_KEY='kh_your_key_here'" >> ~/.openclaw/service-env/ai.openclaw.gateway.env
+   openclaw gateway stop && openclaw gateway start
+   ```
+
+2. Check the gateway logs for config errors:
+   ```bash
+   openclaw gateway status
+   ```
+
+3. Verify the plugin is loaded with correct schemas:
+   ```bash
+   openclaw plugins inspect keepergate
+   # Should show: Status: loaded
+   ```
+
+4. Try running a direct tool invocation to see if there are runtime errors with config reading.
+
+### Other issues
 
 **Token mismatch on dashboard**
 

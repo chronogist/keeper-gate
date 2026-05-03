@@ -33,21 +33,48 @@ export function buildKeepergateTools(
  * runtimeConfig.plugins.entries[<pluginId>] (see openclaw.json).
  */
 function readConfig(ctx: OpenClawPluginToolContext): KeepergatePluginOptions {
+  // Try runtimeConfig first (primary), then config (fallback)
   const cfg = ctx.runtimeConfig ?? ctx.config;
-  const entries = (cfg as unknown as {
-    plugins?: { entries?: Record<string, Record<string, unknown>> };
-  })?.plugins?.entries;
-  const own = entries?.[PLUGIN_ID] ?? {};
-  const apiKey =
-    (typeof own.apiKey === "string" && own.apiKey) ||
-    process.env.KEEPERHUB_API_KEY;
+  
+  if (!cfg || typeof cfg !== 'object') {
+    // If no config context, fall back to environment variable only
+    const apiKey = process.env.KEEPERHUB_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "[@keepergate/openclaw] KEEPERHUB_API_KEY is required. Either set it via plugin config or as an environment variable."
+      );
+    }
+    return { apiKey };
+  }
+
+  // Safely extract plugin entries from config
+  const entries = (cfg as Record<string, any>)?.plugins?.entries;
+  if (!entries || typeof entries !== 'object') {
+    // Config exists but no plugin entries section - use env var
+    const apiKey = process.env.KEEPERHUB_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "[@keepergate/openclaw] KEEPERHUB_API_KEY is required. Either set it via plugin config or as an environment variable."
+      );
+    }
+    return { apiKey };
+  }
+
+  const own = (entries as Record<string, any>)?.[PLUGIN_ID] as Record<string, unknown> | undefined ?? {};
+  
+  // Extract apiKey from config or fall back to environment variable
+  const configApiKey = typeof own.apiKey === "string" ? own.apiKey : null;
+  const apiKey = configApiKey || process.env.KEEPERHUB_API_KEY;
+  
   if (!apiKey) {
     throw new Error(
-      "[@keepergate/openclaw] KEEPERHUB_API_KEY is required (set via plugin config or env var)."
+      "[@keepergate/openclaw] KEEPERHUB_API_KEY is required. Either set it via plugin config or as an environment variable."
     );
   }
-  const baseUrl =
-    (typeof own.baseUrl === "string" && own.baseUrl) || undefined;
+
+  // Extract optional baseUrl from config
+  const baseUrl = typeof own.baseUrl === "string" ? own.baseUrl : undefined;
+
   return { apiKey, baseUrl };
 }
 

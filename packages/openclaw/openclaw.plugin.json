@@ -5,7 +5,7 @@
   "description": "Reliable on-chain execution via KeeperHub: transfers, contract calls, conditional execution, and pre-built workflow triggers.",
   "version": "0.0.1",
   "kind": "tool",
-  "entry": "src/index.ts",
+  "entry": "dist/index.js",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
